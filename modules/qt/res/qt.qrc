@@ -1,0 +1,8 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource prefix="/Icon">
+        <file alias="ZoomIn">../../res/zoomIn.png</file>
+        <file alias="ZoomOut">../../res/zoomOut.png</file>
+        <file alias="ActualSize">../../res/actualSize.png</file>
+        <file alias="FitToWindow">../../res/fitToWindow.png</file>
+    </qresource>
+</RCC>

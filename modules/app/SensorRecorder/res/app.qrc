@@ -1,0 +1,13 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource prefix="/Icon">    
+        <file alias="SensorRecorder">../../../res/sensorRecorder.png</file>
+        <file alias="Open">../../../res/open.png</file>
+        <file alias="Refresh">../../../res/refresh.png</file>
+        <file alias="Init">../../../res/init.png</file>
+        <file alias="Live">../../../res/live.png</file>
+        <file alias="Setting">../../../res/setting.png</file>
+        <file alias="Stop">../../../res/stop.png</file>
+        <file alias="Capture">../../../res/capture.png</file>
+        <file alias="Record">../../../res/record.png</file>
+    </qresource>
+</RCC>
