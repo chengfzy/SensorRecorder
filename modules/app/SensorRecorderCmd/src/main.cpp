@@ -1,17 +1,22 @@
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <glog/logging.h>
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
+#include <condition_variable>
+#include <cxxopts.hpp>
 #include <iostream>
+#include <mutex>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include "libra/io.hpp"
 
 using namespace std;
 using namespace fmt;
-namespace fs = boost::filesystem;
 using namespace libra::core;
 using namespace libra::io;
 using namespace libra::util;
+namespace fs = boost::filesystem;
 
 /**
  * @brief Image save format
@@ -21,10 +26,40 @@ enum class ImageSaveFormat {
     Index,   // index
 };
 
-int main(int argc, const char* argv[]) {
+int main(int argc, char* argv[]) {
+    // argument parser
+    cxxopts::Options options(argv[0], "Sensor Recorder without GUI");
+    // clang-format off
+    options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
+        ("frameRate", "frame rate", cxxopts::value<int>()->default_value("30"))
+        ("streamMode", "stream mode", cxxopts::value<string>()->default_value("2560x720"))
+        ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))
+        ("h,help", "help message");
+    // clang-format on
+    auto result = options.parse(argc, argv);
+    if (result.count("help")) {
+        cout << options.help() << endl;
+        return 0;
+    }
+    string saveRootFolder = result["folder"].as<string>();
+    int frameRate = result["frameRate"].as<int>();
+    string streamModeName = result["streamMode"].as<string>();
+    int saverThreadNum = result["saverThreadNum"].as<int>();
+    // check stream mode
+    vector<string> streamModeNames = {"2560x720", "1280x720", "1280x480", "640x480"};
+    if (find_if(streamModeNames.begin(), streamModeNames.end(),
+                [&](const string& s) { return boost::iequals(s, streamModeName); }) == streamModeNames.end()) {
+        cout << format("input detector type should be one item in {}", streamModeNames) << endl << endl;
+        cout << options.help() << endl;
+        return 0;
+    }
+
     cout << Title("Sensor Recorder without GUI");
-    string saveRootFolder{"./data01"};
-    ImageSaveFormat saveFormat_ = ImageSaveFormat::Kalibr;
+    cout << format("save folder: {}", saveRootFolder) << endl;
+    cout << format("frame rate = {} Hz", frameRate) << endl;
+    cout << format("stream mode: {}", streamModeName) << endl;
+    cout << format("saver thread number = {}", saverThreadNum) << endl;
+    ImageSaveFormat saveFormat = ImageSaveFormat::Kalibr;  // save format
 
     // get device
     cout << Section("Get MYNT-EYE Device");
@@ -33,13 +68,26 @@ int main(int argc, const char* argv[]) {
         return 0;
     }
 
+    // get stream mode from string
+    mynteyed::StreamMode streamMode;
+    if (boost::iequals(streamModeName, "2560x720")) {
+        streamMode = mynteyed::StreamMode::STREAM_2560x720;
+    } else if (boost::iequals(streamModeName, "1280x720")) {
+        streamMode = mynteyed::StreamMode::STREAM_1280x720;
+    } else if (boost::iequals(streamModeName, "1280x480")) {
+        streamMode = mynteyed::StreamMode::STREAM_1280x480;
+    } else if (boost::iequals(streamModeName, "640x480")) {
+        streamMode = mynteyed::StreamMode::STREAM_640x480;
+    }
+
     // set and init
     cout << Section("Start Camera");
     auto recorder = make_shared<MyntEyeRecorder>(devices.front().first);
-    recorder->setFrameRate(30);
-    recorder->setStreamMode(mynteyed::StreamMode::STREAM_1280x720);
-    recorder->setSaverThreadNum(2);
+    recorder->setFrameRate(frameRate);
+    recorder->setStreamMode(streamMode);
+    recorder->setSaverThreadNum(saverThreadNum);
     recorder->setTimeStampRetrieveMethod(TimestampRetrieveMethod::Sensor);
+
     // init
     recorder->init();
 
@@ -57,7 +105,7 @@ int main(int argc, const char* argv[]) {
     cout << format("right image path: {}", rightImageSavePath.string()) << endl;
     cout << format("IMU path: {}", imuSavePath.string()) << endl;
 
-    // remove old files
+    // create left save folder
     fs::remove_all(leftImageSavePath);
     if (!fs::create_directories(leftImageSavePath)) {
         LOG(ERROR) << format("cannot create folder \"{}\" to save left image", leftImageSavePath.string());
@@ -75,12 +123,15 @@ int main(int argc, const char* argv[]) {
     // IMU file stream
     fstream imuFileStream;
 
-    // some index
-    size_t leftImageIndex{0};
+    // some variables
+    size_t leftImageIndex{0};  // image index
     size_t rightImageIndex{0};
+    // mutex and condition variable indict whether to show this image
+    mutex showImageMutex;
+    condition_variable showImageCv;
+    cv::Mat leftImage, rightImage;
 
     // set callback function
-    // create save folder before run
     recorder->addCallback(MyntEyeRecorder::CallBackStarted, [&]() {
         // open IMU file
         imuFileStream.open(imuSavePath.string(), ios::out);
@@ -98,7 +149,7 @@ int main(int argc, const char* argv[]) {
     recorder->setProcessFunction([&](const RawImageRecord& raw) {
         // save file name
         string fileName;
-        switch (saveFormat_) {
+        switch (saveFormat) {
             case ImageSaveFormat::Kalibr:
                 fileName = format("{}/{:.0f}.jpg", leftImageSavePath.string(), raw.timestamp() * 1E9);
                 break;
@@ -119,9 +170,8 @@ int main(int argc, const char* argv[]) {
         // send image per 10 images
         if (0 == leftImageIndex % 10) {
             cv::Mat buf(1, raw.reading().size(), CV_8UC1, (void*)raw.reading().buffer());
-            cv::Mat img = cv::imdecode(buf.clone(), cv::IMREAD_UNCHANGED);
-            cv::imshow("Left Image", img);
-            cv::waitKey(1);
+            leftImage = cv::imdecode(buf, cv::IMREAD_UNCHANGED);
+            showImageCv.notify_one();
         }
 
         ++leftImageIndex;
@@ -133,7 +183,7 @@ int main(int argc, const char* argv[]) {
         recorder->setRightProcessFunction([&](const RawImageRecord& raw) {
             // save file name
             string fileName;
-            switch (saveFormat_) {
+            switch (saveFormat) {
                 case ImageSaveFormat::Kalibr:
                     fileName = format("{}/{:.0f}.jpg", rightImageSavePath.string(), raw.timestamp() * 1.0E9);
                     break;
@@ -154,8 +204,8 @@ int main(int argc, const char* argv[]) {
             // send image per 10 images
             if (0 == rightImageIndex % 10) {
                 cv::Mat buf(1, raw.reading().size(), CV_8UC1, (void*)raw.reading().buffer());
-                cv::imshow("Right Image", cv::imdecode(buf, cv::IMREAD_UNCHANGED));
-                cv::waitKey(1);
+                rightImage = cv::imdecode(buf, cv::IMREAD_UNCHANGED);
+                showImageCv.notify_one();
             }
 
             ++rightImageIndex;
@@ -171,12 +221,27 @@ int main(int argc, const char* argv[]) {
                       << endl;
     });
 
+    // start
     recorder->start();
 
-    while (!recorder->isStop()) {
-        sleep(10);
+    // wait stop
+    while (true) {
+        unique_lock<mutex> lock(showImageMutex);
+        showImageCv.wait(lock, [&]() {
+            return (leftImageIndex != 0 && leftImageIndex % 10 == 0) ||
+                   (rightImageIndex != 0 && rightImageIndex % 10 == 0);
+        });
+
+        cv::imshow("Left Image", leftImage);
+        cv::imshow("Right Image", rightImage);
+        int ret = cv::waitKey(1);
+
+        if (ret == 'Q' || ret == 'q') {
+            recorder->stop();
+            recorder->wait();
+            break;
+        }
     }
-    // recorder->stop();
 
     return 0;
 }
