@@ -25,7 +25,9 @@ namespace io {
 class MyntEyeRecorder : public IRecorder {
   private:
     /**
-     * @brief Raw image with timestamp
+     * @brief Raw image with timestamp.
+     *
+     * @note Could also get the exposure time, frame id info
      */
     struct RawImage {
         std::shared_ptr<mynteyed::Image> img;  //!< image data pointer
@@ -179,7 +181,7 @@ class MyntEyeRecorder : public IRecorder {
     TimestampRetrieveMethod timestampMethod_;  // timestamp retrieve method
     // raw image record process function for right camera
     std::function<void(const core::RawImageRecord&)> processRightRawImg_;
-    
+
     // camera pointer, cannot use object due to the watch dog in MyntEye SDK(device.h)
     std::shared_ptr<mynteyed::Camera> cam_;
     bool isRightCamEnabled_;                                     // right camera is enable or not

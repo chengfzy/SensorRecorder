@@ -6,6 +6,7 @@
 #include <boost/date_time.hpp>
 #include <opencv2/opencv.hpp>
 
+using namespace cv;
 using namespace std;
 using namespace Eigen;
 using namespace boost::posix_time;
@@ -209,10 +210,6 @@ void MyntEyeRecorder::openDevice() {
 
     // enable image info
     cam_->EnableImageInfo(true);
-    // TODO, remove the deprecated code
-    cam_->DisableStreamData(ImageType::IMAGE_ALL);
-    cam_->DisableStreamData(ImageType::IMAGE_LEFT_COLOR);
-    cam_->DisableStreamData(ImageType::IMAGE_RIGHT_COLOR);
     // endable IMU
     cam_->EnableProcessMode(ProcessMode::PROC_IMU_ALL);
     cam_->EnableMotionDatas();
@@ -252,13 +249,6 @@ void MyntEyeRecorder::createImageSaverThread() {
                 // compress image from BGR to jpeg
                 RawImageRecord record;
                 record.setTimestamp(job.data().timestamp);
-                // compress error if use the raw YUYV data
-                // if (tjCompressFromYUV(compressor, job.data().img->data(), job.data().img->width(), 1,
-                //                       job.data().img->height(), TJ_420, &record.reading().buffer(),
-                //                       &record.reading().size(), 95, TJFLAG_FASTDCT) != 0) {
-                //     LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
-                // }
-
                 if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
                                 job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
                                 &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
