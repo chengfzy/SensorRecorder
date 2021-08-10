@@ -127,6 +127,7 @@ int main(int argc, char* argv[]) {
     size_t leftImageIndex{0};  // image index
     size_t rightImageIndex{0};
     // mutex and condition variable indict whether to show this image
+    bool showImageReady{false};  // flag to indict the image is ready
     mutex showImageMutex;
     condition_variable showImageCv;
     cv::Mat leftImage, rightImage;
@@ -171,6 +172,9 @@ int main(int argc, char* argv[]) {
         if (0 == leftImageIndex % 10) {
             cv::Mat buf(1, raw.reading().size(), CV_8UC1, (void*)raw.reading().buffer());
             leftImage = cv::imdecode(buf, cv::IMREAD_UNCHANGED);
+
+            unique_lock<mutex> lock(showImageMutex);
+            showImageReady = true;
             showImageCv.notify_one();
         }
 
@@ -205,6 +209,9 @@ int main(int argc, char* argv[]) {
             if (0 == rightImageIndex % 10) {
                 cv::Mat buf(1, raw.reading().size(), CV_8UC1, (void*)raw.reading().buffer());
                 rightImage = cv::imdecode(buf, cv::IMREAD_UNCHANGED);
+
+                unique_lock<mutex> lock(showImageMutex);
+                showImageReady = true;
                 showImageCv.notify_one();
             }
 
@@ -226,11 +233,11 @@ int main(int argc, char* argv[]) {
 
     // wait stop
     while (true) {
-        unique_lock<mutex> lock(showImageMutex);
-        showImageCv.wait(lock, [&]() {
-            return (leftImageIndex != 0 && leftImageIndex % 10 == 0) ||
-                   (rightImageIndex != 0 && rightImageIndex % 10 == 0);
-        });
+        {
+            unique_lock<mutex> lock(showImageMutex);
+            showImageCv.wait(lock, [&]() { return showImageReady; });
+            showImageReady = false;
+        }
 
         cv::imshow("Left Image", leftImage);
         if (recorder->isRightCamEnabled()) {
