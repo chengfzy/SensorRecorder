@@ -102,9 +102,11 @@ int main(int argc, char* argv[]) {
     auto rightImageSavePath = fs::weakly_canonical(rootPath / "right");
     auto imuSavePath = rootPath / "imu.csv";
 
+    // remove old files
+    fs::remove_all(rootPath);
+
     // create left save folder
     cout << format("left image path: {}", leftImageSavePath.string()) << endl;
-    fs::remove_all(leftImageSavePath);
     if (!fs::create_directories(leftImageSavePath)) {
         LOG(ERROR) << format("cannot create folder \"{}\" to save left image", leftImageSavePath.string());
     }
@@ -112,8 +114,6 @@ int main(int argc, char* argv[]) {
     // create right save folder
     if (recorder->isRightCamEnabled()) {
         cout << format("right image path: {}", rightImageSavePath.string()) << endl;
-        // remove old jpg files in right save folder
-        fs::remove_all(rightImageSavePath);
         if (!fs::create_directories(rightImageSavePath)) {
             LOG(ERROR) << format("cannot create folder \"{}\" to save right image", rightImageSavePath.string());
         }
