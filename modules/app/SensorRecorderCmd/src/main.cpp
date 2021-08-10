@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
     // clang-format off
     options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
         ("frameRate", "frame rate", cxxopts::value<int>()->default_value("30"))
+        ("onlyLeft", "only process left camera", cxxopts::value<bool>())
         ("streamMode", "stream mode", cxxopts::value<string>()->default_value("2560x720"))
         ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))
         ("h,help", "help message");
@@ -43,6 +44,7 @@ int main(int argc, char* argv[]) {
     }
     string saveRootFolder = result["folder"].as<string>();
     int frameRate = result["frameRate"].as<int>();
+    bool onlyLeft = result["onlyLeft"].as<bool>();
     string streamModeName = result["streamMode"].as<string>();
     int saverThreadNum = result["saverThreadNum"].as<int>();
     // check stream mode
@@ -57,6 +59,7 @@ int main(int argc, char* argv[]) {
     cout << Title("Sensor Recorder without GUI");
     cout << format("save folder: {}", saveRootFolder) << endl;
     cout << format("frame rate = {} Hz", frameRate) << endl;
+    cout << format("only process left camera = {}", onlyLeft) << endl;
     cout << format("stream mode: {}", streamModeName) << endl;
     cout << format("saver thread number = {}", saverThreadNum) << endl;
     ImageSaveFormat saveFormat = ImageSaveFormat::Kalibr;  // save format
@@ -112,7 +115,7 @@ int main(int argc, char* argv[]) {
     }
 
     // create right save folder
-    if (recorder->isRightCamEnabled()) {
+    if (!onlyLeft && recorder->isRightCamEnabled()) {
         cout << format("right image path: {}", rightImageSavePath.string()) << endl;
         if (!fs::create_directories(rightImageSavePath)) {
             LOG(ERROR) << format("cannot create folder \"{}\" to save right image", rightImageSavePath.string());
@@ -148,6 +151,8 @@ int main(int argc, char* argv[]) {
 
     // set process function for left camera
     recorder->setProcessFunction([&](const RawImageRecord& raw) {
+        LOG(INFO) << "process image, left index = " << leftImageIndex;
+
         // save file name
         string fileName;
         switch (saveFormat) {
@@ -182,7 +187,9 @@ int main(int argc, char* argv[]) {
     });
 
     // set process function for right camera
-    if (recorder->isRightCamEnabled()) {
+    if (!onlyLeft && recorder->isRightCamEnabled()) {
+        LOG(INFO) << "process image, right index = " << rightImageIndex;
+
         // set process function, for right camera
         recorder->setRightProcessFunction([&](const RawImageRecord& raw) {
             // save file name
@@ -240,7 +247,7 @@ int main(int argc, char* argv[]) {
         }
 
         cv::imshow("Left Image", leftImage);
-        if (recorder->isRightCamEnabled()) {
+        if (!onlyLeft && recorder->isRightCamEnabled()) {
             cv::imshow("Right Image", rightImage);
         }
         int ret = cv::waitKey(1);
