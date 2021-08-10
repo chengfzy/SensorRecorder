@@ -266,7 +266,9 @@ void MyntEyeRecorder::createImageSaverThread() {
                 }
 
                 // process raw image
-                processRawImg_(record);
+                if (processRawImg_) {
+                    processRawImg_(record);
+                }
 
                 // release turbo jpeg data buffer
                 tjFree(record.reading().buffer());

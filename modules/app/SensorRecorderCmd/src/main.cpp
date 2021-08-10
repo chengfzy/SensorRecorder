@@ -101,11 +101,9 @@ int main(int argc, char* argv[]) {
     auto leftImageSavePath = fs::weakly_canonical(rootPath / "left");
     auto rightImageSavePath = fs::weakly_canonical(rootPath / "right");
     auto imuSavePath = rootPath / "imu.csv";
-    cout << format("left image path: {}", leftImageSavePath.string()) << endl;
-    cout << format("right image path: {}", rightImageSavePath.string()) << endl;
-    cout << format("IMU path: {}", imuSavePath.string()) << endl;
 
     // create left save folder
+    cout << format("left image path: {}", leftImageSavePath.string()) << endl;
     fs::remove_all(leftImageSavePath);
     if (!fs::create_directories(leftImageSavePath)) {
         LOG(ERROR) << format("cannot create folder \"{}\" to save left image", leftImageSavePath.string());
@@ -113,6 +111,7 @@ int main(int argc, char* argv[]) {
 
     // create right save folder
     if (recorder->isRightCamEnabled()) {
+        cout << format("right image path: {}", rightImageSavePath.string()) << endl;
         // remove old jpg files in right save folder
         fs::remove_all(rightImageSavePath);
         if (!fs::create_directories(rightImageSavePath)) {
@@ -121,6 +120,7 @@ int main(int argc, char* argv[]) {
     }
 
     // IMU file stream
+    cout << format("IMU path: {}", imuSavePath.string()) << endl;
     fstream imuFileStream;
 
     // some variables
@@ -233,7 +233,9 @@ int main(int argc, char* argv[]) {
         });
 
         cv::imshow("Left Image", leftImage);
-        cv::imshow("Right Image", rightImage);
+        if (recorder->isRightCamEnabled()) {
+            cv::imshow("Right Image", rightImage);
+        }
         int ret = cv::waitKey(1);
 
         if (ret == 'Q' || ret == 'q') {
