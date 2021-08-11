@@ -41,6 +41,9 @@ class Checker:
         """
         Read IMU data
         """
+        if not self.imu_path.exists():
+            return
+
         # read imu
         logging.info(f'loading IMU data from file "{self.imu_path}"')
         data = np.loadtxt(str(self.imu_path), delimiter=',', skiprows=1)
@@ -81,10 +84,12 @@ class Checker:
         if self.left_folder.exists():
             logging.info(f'loading left image files from folder "{self.left_folder}"')
             self.left_images = sorted([f for f in self.left_folder.iterdir() if f.is_file()])
+            logging.info(f'left image count = {len(self.left_images)}')
 
         if self.right_folder.exists():
             logging.info(f'loading right image files from folder "{self.right_folder}"')
             self.right_images = sorted([f for f in self.right_folder.iterdir() if f.is_file()])
+            logging.info(f'right image count = {len(self.right_images)}')
 
     def __frequency_check(self) -> None:
         """
@@ -94,26 +99,30 @@ class Checker:
         expect_image_delta_time = 1. / 30  # Image 30 Hz
 
         # check accelerator
-        print(util.Paragraph('Lost Recording for IMU Accelerator'))
-        lost_count = 0
-        for n in range(len(self.acc_timestamp) - 1):
-            delta = (self.acc_timestamp[n + 1] - self.acc_timestamp[n])
-            if delta > 2. * expect_imu_delta_time or delta < 0:
-                print(f'[{n}/{len(self.acc_timestamp)}] t = {self.acc_timestamp[n]:.5f} s'
-                      f', deltaTime = {delta * 1000:.5f} ms')
-                lost_count += 1
-        print(f'Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(self.acc_timestamp) - 1):.3f}%')
+        if self.acc_timestamp is not None:
+            print(util.Paragraph('Lost Recording for IMU Accelerator'))
+            lost_count = 0
+            for n in range(len(self.acc_timestamp) - 1):
+                delta = (self.acc_timestamp[n + 1] - self.acc_timestamp[n])
+                if delta > 2. * expect_imu_delta_time or delta < 0:
+                    print(f'[{n}/{len(self.acc_timestamp)}] t = {self.acc_timestamp[n]:.5f} s'
+                          f', deltaTime = {delta * 1000:.5f} ms')
+                    lost_count += 1
+            print(f'IMU Accelerator, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(self.acc_timestamp) - 1):.3f}%')
 
         # check gyroscope
-        print(util.Paragraph('Lost Recording for IMU Gyroscope'))
-        lost_count = 0
-        for n in range(len(self.gyro_timestamp) - 1):
-            delta = (self.gyro_timestamp[n + 1] - self.gyro_timestamp[n])
-            if delta > 2. * expect_imu_delta_time or delta < 0:
-                print(f'[{n}/{len(self.gyro_timestamp)}] t = {self.gyro_timestamp[n]:.5f} s'
-                      f', deltaTime = {delta * 1000:.5f} ms')
-                lost_count += 1
-        print(f'Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(self.gyro_timestamp) - 1):.3f}%')
+        if self.gyro_timestamp is not None:
+            print(util.Paragraph('Lost Recording for IMU Gyroscope'))
+            lost_count = 0
+            for n in range(len(self.gyro_timestamp) - 1):
+                delta = (self.gyro_timestamp[n + 1] - self.gyro_timestamp[n])
+                if delta > 2. * expect_imu_delta_time or delta < 0:
+                    print(f'[{n}/{len(self.gyro_timestamp)}] t = {self.gyro_timestamp[n]:.5f} s'
+                          f', deltaTime = {delta * 1000:.5f} ms')
+                    lost_count += 1
+            print(f'IMU Gyroscope, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(self.gyro_timestamp) - 1):.3f}%')
 
         # check left images
         if self.left_images is not None:
@@ -122,22 +131,24 @@ class Checker:
             timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.left_images]))  # s
             for n in range(len(timestamp) - 1):
                 delta = (timestamp[n + 1] - timestamp[n])
-                if delta > 2. * expect_image_delta_time or delta < 0:
+                if delta > 1.5 * expect_image_delta_time or delta < 0:
                     print(f'[{n}/{len(timestamp)}] t = {timestamp[n]:.5f} s, deltaTime = {delta * 1000:.5f} ms')
                     lost_count += 1
-            print(f'Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(timestamp) - 1):.3f}%')
+            print(f'Left Image, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(timestamp) - 1):.3f}%')
 
         # check right images
         if self.right_images is not None:
-            print(util.Paragraph('Lost Recording for Left Image'))
+            print(util.Paragraph('Lost Recording for Right Image'))
             lost_count = 0
             timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.right_images]))  # s
             for n in range(len(timestamp) - 1):
                 delta = (timestamp[n + 1] - timestamp[n])
-                if delta > 2. * expect_image_delta_time or delta < 0:
+                if delta > 1.5 * expect_image_delta_time or delta < 0:
                     print(f'[{n}/{len(timestamp)}] t = {timestamp[n]:.5f} s, deltaTime = {delta * 1000:.5f} ms')
                     lost_count += 1
-            print(f'Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(timestamp) - 1):.3f}%')
+            print(f'Right Image, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(timestamp) - 1):.3f}%')
 
 
 if __name__ == '__main__':
