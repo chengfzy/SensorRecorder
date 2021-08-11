@@ -21,6 +21,7 @@ MyntEyeRecorder::MyntEyeRecorder(unsigned int index, unsigned int frameRate, con
     : deviceIndex_(index),
       frameRate_(frameRate),
       streamMode_(StreamMode::STREAM_MODE_LAST),
+      streamFormat_(StreamFormat::STREAM_FORMAT_LAST),
       saverThreadNum_(saverThreadNum),
       timestampMethod_(TimestampRetrieveMethod::Sensor),
       isRightCamEnabled_(false) {}
@@ -78,6 +79,15 @@ void MyntEyeRecorder::setStreamMode(mynteyed::StreamMode streamMode) {
         LOG(WARNING) << fmt::format("don't support STREAM_MODE_LAST, use the last value = {}", streamMode_);
     } else {
         streamMode_ = streamMode;
+    }
+}
+
+// Set the stream format of device,
+void MyntEyeRecorder::setStreamFormat(mynteyed::StreamFormat streamFormat) {
+    if (streamFormat == StreamFormat::STREAM_FORMAT_LAST) {
+        LOG(WARNING) << fmt::format("don't support STREAM_FORMAT_LAST, use the last value = {}", streamFormat);
+    } else {
+        streamFormat_ = streamFormat;
     }
 }
 
@@ -197,7 +207,8 @@ void MyntEyeRecorder::openDevice() {
     openParams.framerate = frameRate_;
     openParams.dev_mode = DeviceMode::DEVICE_COLOR;  // only image without depth
     openParams.color_mode = ColorMode::COLOR_RAW;    // undistored image
-    openParams.stream_mode = streamMode_;            // stream
+    openParams.stream_mode = streamMode_;            // stream mode
+    openParams.color_stream_format = streamFormat_;  // stream format
 
     // open
     cam_->Open(openParams);
@@ -207,12 +218,17 @@ void MyntEyeRecorder::openDevice() {
     openParams = cam_->GetOpenParams();
     frameRate_ = openParams.framerate;
     streamMode_ = openParams.stream_mode;
+    streamFormat_ = openParams.color_stream_format;
+    // logging
+    LOG(INFO) << fmt::format("frame rate = {} Hz", frameRate_);
+    LOG(INFO) << fmt::format("stream mode = {}", streamMode_);
+    LOG(INFO) << fmt::format("stream format = {}", streamFormat_);
 
     // enable image info
     cam_->EnableImageInfo(true);
     // endable IMU
-    cam_->EnableProcessMode(ProcessMode::PROC_IMU_ALL);
     cam_->EnableMotionDatas();
+    cam_->EnableProcessMode(ProcessMode::PROC_IMU_ALL);
 
     // get camera intrinsics and extrinsics
     StreamIntrinsics streamIntrinsics = cam_->GetStreamIntrinsics(streamMode_);

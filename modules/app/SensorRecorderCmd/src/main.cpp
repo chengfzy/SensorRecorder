@@ -32,9 +32,10 @@ int main(int argc, char* argv[]) {
     // clang-format off
     options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
         ("frameRate", "frame rate", cxxopts::value<int>()->default_value("30"))
-        ("onlyLeft", "only process left camera", cxxopts::value<bool>())
         ("streamMode", "stream mode", cxxopts::value<string>()->default_value("2560x720"))
+        ("streamFormat", "stream format", cxxopts::value<string>()->default_value("MJPG"))
         ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))
+        ("onlyLeft", "only process left camera", cxxopts::value<bool>())
         ("showImage", "show image or not", cxxopts::value<bool>())
         ("h,help", "help message");
     // clang-format on
@@ -45,10 +46,13 @@ int main(int argc, char* argv[]) {
     }
     string saveRootFolder = result["folder"].as<string>();
     int frameRate = result["frameRate"].as<int>();
-    bool onlyLeft = result["onlyLeft"].as<bool>();
     string streamModeName = result["streamMode"].as<string>();
+    string streamFormatName = result["streamFormat"].as<string>();
     int saverThreadNum = result["saverThreadNum"].as<int>();
+    // this option only used for RP4+YUYV, which cannot open only left camera
+    bool onlyLeft = result["onlyLeft"].as<bool>();
     bool showImage = result["showImage"].as<bool>();
+
     // check stream mode
     vector<string> streamModeNames = {"2560x720", "1280x720", "1280x480", "640x480"};
     if (find_if(streamModeNames.begin(), streamModeNames.end(),
@@ -57,15 +61,29 @@ int main(int argc, char* argv[]) {
         cout << options.help() << endl;
         return 0;
     }
+    // check stream format
+    vector<string> streamFormatNames = {"YUYV", "MJPG"};
+    if (find_if(streamFormatNames.begin(), streamFormatNames.end(),
+                [&](const string& s) { return boost::iequals(s, streamFormatName); }) == streamFormatNames.end()) {
+        cout << format("input stream format should be one item in {}", streamFormatNames) << endl << endl;
+        cout << options.help() << endl;
+        return 0;
+    }
 
     cout << Title("Sensor Recorder without GUI");
     cout << format("save folder: {}", saveRootFolder) << endl;
     cout << format("frame rate = {} Hz", frameRate) << endl;
-    cout << format("only process left camera = {}", onlyLeft) << endl;
     cout << format("stream mode: {}", streamModeName) << endl;
+    cout << format("stream format: {}", streamFormatName) << endl;
     cout << format("saver thread number = {}", saverThreadNum) << endl;
+    cout << format("only process left camera = {}", onlyLeft) << endl;
     cout << format("show image = {}", showImage) << endl;
     ImageSaveFormat saveFormat = ImageSaveFormat::Kalibr;  // save format
+
+    // init glog
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_alsologtostderr = true;
+    FLAGS_colorlogtostderr = true;
 
     // get device
     cout << Section("Get MYNT-EYE Device");
@@ -85,12 +103,20 @@ int main(int argc, char* argv[]) {
     } else if (boost::iequals(streamModeName, "640x480")) {
         streamMode = mynteyed::StreamMode::STREAM_640x480;
     }
+    // get stream format from string
+    mynteyed::StreamFormat streamFormat;
+    if (boost::iequals(streamFormatName, "YUYV")) {
+        streamFormat = mynteyed::StreamFormat::STREAM_YUYV;
+    } else if (boost::iequals(streamFormatName, "MJPG")) {
+        streamFormat = mynteyed::StreamFormat::STREAM_MJPG;
+    }
 
     // set and init
     cout << Section("Start Camera");
     auto recorder = make_shared<MyntEyeRecorder>(devices.front().first);
     recorder->setFrameRate(frameRate);
     recorder->setStreamMode(streamMode);
+    recorder->setStreamFormat(streamFormat);
     recorder->setSaverThreadNum(saverThreadNum);
     recorder->setTimeStampRetrieveMethod(TimestampRetrieveMethod::Sensor);
 

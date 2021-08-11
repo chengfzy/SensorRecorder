@@ -79,6 +79,13 @@ class MyntEyeRecorder : public IRecorder {
     inline mynteyed::StreamMode streamMode() const { return streamMode_; }
 
     /**
+     * @brief Get the stream format
+     *
+     * @return  Stream format
+     */
+    inline mynteyed::StreamFormat streamFormat() const { return streamFormat_; }
+
+    /**
      * @brief Get the image saver thread number
      *
      * @return  Image saver thread number
@@ -119,6 +126,13 @@ class MyntEyeRecorder : public IRecorder {
      * @param streamMode Stream mode
      */
     void setStreamMode(mynteyed::StreamMode streamMode);
+
+    /**
+     * @brief Set the stream format of device, the format used for data transferring
+     *
+     * @param streamFormat Stream format
+     */
+    void setStreamFormat(mynteyed::StreamFormat streamFormat);
 
     /**
      * @brief Set the saver thread number, should be set before `init()`
@@ -177,6 +191,7 @@ class MyntEyeRecorder : public IRecorder {
     unsigned int deviceIndex_;                 // device index
     unsigned int frameRate_;                   // frame rate, Hz
     mynteyed::StreamMode streamMode_;          // stream mode, could set image size and camera num(left or left + right)
+    mynteyed::StreamFormat streamFormat_;      // stream format, the format used for data transferring
     std::size_t saverThreadNum_;               // image saver thread number
     TimestampRetrieveMethod timestampMethod_;  // timestamp retrieve method
     // raw image record process function for right camera
