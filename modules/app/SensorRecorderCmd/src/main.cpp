@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
     // clang-format off
     options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
         ("frameRate", "frame rate", cxxopts::value<int>()->default_value("30"))
-        ("streamMode", "stream mode", cxxopts::value<string>()->default_value("2560x720"))
+        ("streamMode", "stream mode", cxxopts::value<string>()->default_value("1280x720"))
         ("streamFormat", "stream format", cxxopts::value<string>()->default_value("MJPG"))
         ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))
         ("onlyLeft", "only process left camera", cxxopts::value<bool>())
@@ -180,7 +180,8 @@ int main(int argc, char* argv[]) {
 
     // set process function for left camera
     recorder->setProcessFunction([&](const RawImageRecord& raw) {
-        LOG(INFO) << fmt::format("process left image, index = {}", leftImageIndex);
+        LOG_EVERY_N(INFO, 100) << fmt::format("process left image, index = {}, timestamp = {:.5f} s", leftImageIndex,
+                                              raw.timestamp());
 
         // save file name
         string fileName;
@@ -212,15 +213,31 @@ int main(int argc, char* argv[]) {
             showImageCv.notify_one();
         }
 
+#if true
+        // remove old files
+        if (leftImageIndex % 200000 == 0) {
+            LOG(WARNING) << fmt::format("remove old left images, index = {}", leftImageIndex);
+            // remove old files
+            fs::remove_all(leftImageSavePath);
+
+            // create left save folder
+            cout << format("left image path: {}", leftImageSavePath.string()) << endl;
+            if (!fs::create_directories(leftImageSavePath)) {
+                LOG(ERROR) << format("cannot create folder \"{}\" to save left image", leftImageSavePath.string());
+            }
+        }
+
+#endif
+
         ++leftImageIndex;
     });
 
     // set process function for right camera
     if (!onlyLeft && recorder->isRightCamEnabled()) {
-        LOG(INFO) << fmt::format("process right image, index = {}", rightImageIndex);
-
         // set process function, for right camera
         recorder->setRightProcessFunction([&](const RawImageRecord& raw) {
+            LOG_EVERY_N(INFO, 100) << fmt::format("process right image, index = {}, timestamp = {:.5f} s",
+                                                  rightImageIndex, raw.timestamp());
             // save file name
             string fileName;
             switch (saveFormat) {
