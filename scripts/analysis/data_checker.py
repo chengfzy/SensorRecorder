@@ -1,11 +1,16 @@
 """
-Prepare Images and IMU Data Obtained from MYNT-EYE Camera for Calibration using kalibr
+Checker for MYNT-EYE Sensor Data
 """
 
+import sys
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
+
 import argparse
 import logging
 from typing import Tuple, List
+import matplotlib.pyplot as plt
 import numpy as np
 import util
 
@@ -29,13 +34,26 @@ class Checker:
         self.left_images = None
         self.right_images = None
 
-    def check(self) -> None:
+        # plot configuration
+        self.__figsize = (8, 6)
+        self.__colors = ['b', 'r', 'k']
+        self.__labels = ['X', 'Y', 'Z']
+        self.__markersize = 3
+
+    def check(self, plot_frequency=False, plot_with_index=True) -> None:
         # read sensor data
         self.__read_imu()
         self.__list_images()
 
         # check frequency(lost record)
         self.__frequency_check()
+
+        # plot frequency
+        if plot_frequency:
+            self.__plot_imu_frequency(plot_with_index)
+            self.__plot_image_frequency(plot_with_index)
+
+            plt.show(block=True)
 
     def __read_imu(self) -> None:
         """
@@ -66,6 +84,10 @@ class Checker:
                 acc_timestamp.append(t)
                 split_acc.append(a0)
 
+        if len(acc_timestamp) == 0:
+            logging.warning('empty IMU data')
+            return
+
         # logging basic info
         logging.info(f' acc time range = ({acc_timestamp[0]}, {acc_timestamp[-1]}), data length = {len(acc_timestamp)}')
         logging.info(f'gyro time range = ({gyro_timestamp[0]}, {gyro_timestamp[-1]})'
@@ -83,23 +105,28 @@ class Checker:
         """
         if self.left_folder.exists():
             logging.info(f'loading left image files from folder "{self.left_folder}"')
-            self.left_images = sorted([f for f in self.left_folder.iterdir() if f.is_file()])
-            logging.info(f'left image count = {len(self.left_images)}')
+            left_images = sorted([f for f in self.left_folder.iterdir() if f.is_file()])
+            logging.info(f'left image count = {len(left_images)}')
+            if len(left_images) > 0:
+                self.left_images = left_images
 
         if self.right_folder.exists():
             logging.info(f'loading right image files from folder "{self.right_folder}"')
-            self.right_images = sorted([f for f in self.right_folder.iterdir() if f.is_file()])
-            logging.info(f'right image count = {len(self.right_images)}')
+            right_images = sorted([f for f in self.right_folder.iterdir() if f.is_file()])
+            logging.info(f'right image count = {len(right_images)}')
+            if len(right_images) > 0:
+                self.right_images = right_images
 
-    def __frequency_check(self) -> None:
+    def __frequency_check(self, plot_with_index=True) -> None:
         """
-        Check frequency, or whether some recording is lost
+        Check frequency, whether some recording is lost
         """
         expect_imu_delta_time = 1. / 200.  # IMU 200 Hz
         expect_image_delta_time = 1. / 30  # Image 30 Hz
 
-        # check accelerator
+        # check IMU
         if self.acc_timestamp is not None:
+            # check accelerator
             print(util.Paragraph('Lost Recording for IMU Accelerator'))
             lost_count = 0
             for n in range(len(self.acc_timestamp) - 1):
@@ -111,8 +138,7 @@ class Checker:
             print(f'IMU Accelerator, Lost Count = {lost_count}'
                   f', Lost Ratio = {lost_count * 100. / (len(self.acc_timestamp) - 1):.3f}%')
 
-        # check gyroscope
-        if self.gyro_timestamp is not None:
+            # check gyroscope
             print(util.Paragraph('Lost Recording for IMU Gyroscope'))
             lost_count = 0
             for n in range(len(self.gyro_timestamp) - 1):
@@ -150,18 +176,109 @@ class Checker:
             print(f'Right Image, Lost Count = {lost_count}'
                   f', Lost Ratio = {lost_count * 100. / (len(timestamp) - 1):.3f}%')
 
+    def __plot_imu_frequency(self, plot_with_index=True) -> None:
+        """
+        Plot IMU frequency
+        """
+        # check sensor data
+        if self.acc_timestamp is None or self.gyro_timestamp is None:
+            return
+
+        # plot
+        fig = plt.figure('IMU Frequency', figsize=self.__figsize)
+        # plot accelerator
+        ax = fig.add_subplot(211)
+        delta_time = (self.acc_timestamp[1:] - self.acc_timestamp[:-1]) * 1000.  # ms
+        ax.set_title('IMU Accelerator')
+        if plot_with_index:
+            ax.plot(range(len(self.acc_timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Index')
+        else:
+            ax.plot(self.acc_timestamp[:-1] - self.acc_timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Timestamp (s)')
+        ax.set_ylabel('Delta Time (ms)')
+        ax.grid(True)
+        # plot gyroscope
+        ax = fig.add_subplot(212)
+        delta_time = (self.gyro_timestamp[1:] - self.gyro_timestamp[:-1]) * 1000.  # ms
+        ax.set_title('IMU Gyroscope')
+        if plot_with_index:
+            ax.plot(range(len(self.gyro_timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Index')
+        else:
+            ax.plot(self.gyro_timestamp[:-1] - self.gyro_timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Timestamp (s)')
+        ax.set_ylabel('Delta Time (ms)')
+        ax.grid(True)
+        fig.tight_layout()
+
+    def __plot_image_frequency(self) -> None:
+        """
+        Plot image frequency
+        """
+        # check sensor data
+        if self.left_images is None and self.right_images is None:
+            return
+
+        # calculate plot number
+        plot_num = 0
+        if self.left_images is not None:
+            plot_num += 1
+        if self.right_images is not None:
+            plot_num += 1
+
+        # plot
+        current_plot_index = 1
+        fig = plt.figure('Image Frequency', figsize=self.__figsize)
+        # plot left image
+        if self.left_images is not None:
+            ax = fig.add_subplot(plot_num, 1, current_plot_index)
+            timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.left_images]))  # s
+            delta_time = (timestamp[1:] - timestamp[:-1]) * 1000.  # ms
+            ax.set_title('Left Images')
+            if plot_with_index:
+                ax.plot(range(len(timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+                ax.set_xlabel('Index')
+            else:
+                ax.plot(timestamp[:-1] - timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+                ax.set_xlabel('Timestamp (s)')
+            ax.set_ylabel('Delta Time (ms)')
+            ax.grid(True)
+
+            # add current plot index
+            current_plot_index += 1
+
+        # plot right image
+        if self.right_images is not None:
+            ax = fig.add_subplot(plot_num, 2, current_plot_index)
+            timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.right_images]))  # s
+            delta_time = (timestamp[1:] - timestamp[:-1]) * 1000.  # ms
+            ax.set_title('Right Images')
+            if plot_with_index:
+                ax.plot(range(len(timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+                ax.set_xlabel('Index')
+            else:
+                ax.plot(timestamp[:-1] - timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+                ax.set_xlabel('Timestamp (s)')
+            ax.set_ylabel('Delta Time (ms)')
+            ax.grid(True)
+        fig.tight_layout()
+
 
 if __name__ == '__main__':
-    print(util.Title("Frequency Checking for MYNT-EYE Data"))
+    print(util.Title("Checker for MYNT-EYE Data"))
 
     # config logging
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s %(levelname)s %(filename)s:%(lineno)d] %(message)s")
 
     # argument parser
-    parser = argparse.ArgumentParser(description='Frequency Checking for MYNT-EYE Data')
+    parser = argparse.ArgumentParser(description='Checker for MYNT-EYE Data')
     parser.add_argument('folder', type=str, help='input and save folder')
+    parser.add_argument('--plot-frequency', action='store_true', help='whether to plot frequency')
+    parser.add_argument('--plot-with-index', action='store_true', help='whether to plot x label with sensor index')
     args = parser.parse_args()
+    print(args)
 
     # convert
     checker = Checker(Path(args.folder))
-    checker.check()
+    checker.check(plot_frequency=args.plot_frequency, plot_with_index=args.plot_with_index)
