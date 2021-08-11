@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
         ("onlyLeft", "only process left camera", cxxopts::value<bool>())
         ("streamMode", "stream mode", cxxopts::value<string>()->default_value("2560x720"))
         ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))
+        ("showImage", "show image or not", cxxopts::value<bool>())
         ("h,help", "help message");
     // clang-format on
     auto result = options.parse(argc, argv);
@@ -47,6 +48,7 @@ int main(int argc, char* argv[]) {
     bool onlyLeft = result["onlyLeft"].as<bool>();
     string streamModeName = result["streamMode"].as<string>();
     int saverThreadNum = result["saverThreadNum"].as<int>();
+    bool showImage = result["showImage"].as<bool>();
     // check stream mode
     vector<string> streamModeNames = {"2560x720", "1280x720", "1280x480", "640x480"};
     if (find_if(streamModeNames.begin(), streamModeNames.end(),
@@ -62,6 +64,7 @@ int main(int argc, char* argv[]) {
     cout << format("only process left camera = {}", onlyLeft) << endl;
     cout << format("stream mode: {}", streamModeName) << endl;
     cout << format("saver thread number = {}", saverThreadNum) << endl;
+    cout << format("show image = {}", showImage) << endl;
     ImageSaveFormat saveFormat = ImageSaveFormat::Kalibr;  // save format
 
     // get device
@@ -127,8 +130,8 @@ int main(int argc, char* argv[]) {
     fstream imuFileStream;
 
     // some variables
-    size_t leftImageIndex{0};  // image index
-    size_t rightImageIndex{0};
+    atomic_long leftImageIndex{0};  // image index
+    atomic_long rightImageIndex{0};
     // mutex and condition variable indict whether to show this image
     bool showImageReady{false};  // flag to indict the image is ready
     mutex showImageMutex;
@@ -151,7 +154,7 @@ int main(int argc, char* argv[]) {
 
     // set process function for left camera
     recorder->setProcessFunction([&](const RawImageRecord& raw) {
-        LOG(INFO) << "process image, left index = " << leftImageIndex;
+        LOG(INFO) << fmt::format("process left image, index = {}", leftImageIndex);
 
         // save file name
         string fileName;
@@ -188,7 +191,7 @@ int main(int argc, char* argv[]) {
 
     // set process function for right camera
     if (!onlyLeft && recorder->isRightCamEnabled()) {
-        LOG(INFO) << "process image, right index = " << rightImageIndex;
+        LOG(INFO) << fmt::format("process right image, index = {}", rightImageIndex);
 
         // set process function, for right camera
         recorder->setRightProcessFunction([&](const RawImageRecord& raw) {
@@ -246,16 +249,19 @@ int main(int argc, char* argv[]) {
             showImageReady = false;
         }
 
-        cv::imshow("Left Image", leftImage);
-        if (!onlyLeft && recorder->isRightCamEnabled()) {
-            cv::imshow("Right Image", rightImage);
-        }
-        int ret = cv::waitKey(1);
+        // show image
+        if (showImage) {
+            cv::imshow("Left Image", leftImage);
+            if (!onlyLeft && recorder->isRightCamEnabled()) {
+                cv::imshow("Right Image", rightImage);
+            }
+            int ret = cv::waitKey(1);
 
-        if (ret == 'Q' || ret == 'q') {
-            recorder->stop();
-            recorder->wait();
-            break;
+            if (ret == 'Q' || ret == 'q') {
+                recorder->stop();
+                recorder->wait();
+                break;
+            }
         }
     }
 
