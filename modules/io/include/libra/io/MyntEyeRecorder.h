@@ -16,8 +16,7 @@ namespace io {
  *      2. https://mynt-eye-d-sdk.readthedocs.io/zh_CN/latest/index.html
  *      3. https://github.com/slightech/MYNT-EYE-D-SDK
  *
- * The MYNT EYE device has two global shutter camera(left and right) and one IMU, but the obtained IMU acc and gyro
- * don't have the same timestamp, so I just complete the camera recorder.
+ * @note The MYNT EYE device has two global shutter camera(left and right) and one IMU
  *
  * This class has two ImageRecord process function: (1)left (2)right. If only enable one camera, it will use the left
  * one.
