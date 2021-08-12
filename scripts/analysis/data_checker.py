@@ -212,7 +212,7 @@ class Checker:
         ax.grid(True)
         fig.tight_layout()
 
-    def __plot_image_frequency(self) -> None:
+    def __plot_image_frequency(self, plot_with_index=True) -> None:
         """
         Plot image frequency
         """
