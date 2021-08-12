@@ -6,9 +6,9 @@
 #include <boost/date_time.hpp>
 #include <opencv2/opencv.hpp>
 
-using namespace cv;
 using namespace std;
 using namespace Eigen;
+// using namespace cv;
 using namespace boost::posix_time;
 using namespace boost::gregorian;
 using namespace mynteyed;
@@ -23,7 +23,6 @@ MyntEyeRecorder::MyntEyeRecorder(unsigned int index, unsigned int frameRate, con
       streamMode_(StreamMode::STREAM_MODE_LAST),
       streamFormat_(StreamFormat::STREAM_FORMAT_LAST),
       saverThreadNum_(saverThreadNum),
-      timestampMethod_(TimestampRetrieveMethod::Sensor),
       isRightCamEnabled_(false) {}
 
 // Destructor
@@ -94,9 +93,6 @@ void MyntEyeRecorder::setStreamFormat(mynteyed::StreamFormat streamFormat) {
 // Set the saver thread number
 void MyntEyeRecorder::setSaverThreadNum(const size_t& saverThreadNum) { saverThreadNum_ = saverThreadNum; }
 
-// Set the method to retrieve timestamp
-void MyntEyeRecorder::setTimeStampRetrieveMethod(TimestampRetrieveMethod method) { timestampMethod_ = method; }
-
 //  Set process function for raw image record of right camera
 void MyntEyeRecorder::setRightProcessFunction(const std::function<void(const core::RawImageRecord&)>& func) {
     processRightRawImg_ = func;
@@ -114,8 +110,11 @@ void MyntEyeRecorder::init() {
     if (isRightCamEnabled_) {
         rightImageQueue_ = make_shared<JobQueue<RawImage>>(10);
     }
+    // create IMU quque
+    imuQueue_ = make_shared<JobQueue<RawImu>>(100);
 
-    createImageSaverThread();
+    // create threads to save image and IMU
+    createSaverThread();
 }
 
 // The main run function
@@ -135,6 +134,8 @@ void MyntEyeRecorder::run() {
                 rightImageQueue_->wait();
                 rightImageQueue_->stop();
             }
+            imuQueue_->wait();
+            imuQueue_->stop();
 
             // wait saver thread
             for (auto& t : leftImageSaverThreads_) {
@@ -146,6 +147,9 @@ void MyntEyeRecorder::run() {
                 if (t.joinable()) {
                     t.join();
                 }
+            }
+            if (imuSaverThread_.joinable()) {
+                imuSaverThread_.join();
             }
 
             // reset image queue and clear thread
@@ -162,8 +166,7 @@ void MyntEyeRecorder::run() {
         auto leftStream = cam_->GetStreamData(ImageType::IMAGE_LEFT_COLOR);
         if (leftStream.img) {
             RawImage raw;
-            raw.timestamp = getTimestamp(leftStream.img_info);
-            raw.img = leftStream.img->To(ImageFormat::COLOR_BGR);  // YUYV to BGR
+            raw.timestamp = leftStream.img_info->timestamp;
             leftImageQueue_->push(move(raw));
         }
 
@@ -172,8 +175,7 @@ void MyntEyeRecorder::run() {
             auto rightStream = cam_->GetStreamData(ImageType::IMAGE_RIGHT_COLOR);
             if (rightStream.img) {
                 RawImage raw;
-                raw.timestamp = getTimestamp(rightStream.img_info);
-                raw.img = rightStream.img->To(ImageFormat::COLOR_BGR);  // YUYV to BGR
+                raw.timestamp = rightStream.img_info->timestamp;
                 rightImageQueue_->push(move(raw));
             }
         }
@@ -182,12 +184,10 @@ void MyntEyeRecorder::run() {
         auto motionData = cam_->GetMotionDatas();
         for (auto& motion : motionData) {
             if (motion.imu) {
-                static const double kDeg2Rad = M_PI / 180.;
-                double timestamp = motion.imu->timestamp * 1.0E-5;                              // 0.01 ms => s
-                Vector3d acc = Map<Vector3f>(motion.imu->accel).cast<double>() * Constant::kG;  // g => m/s^2
-                Vector3d gyro = Map<Vector3f>(motion.imu->gyro).cast<double>() * kDeg2Rad;      // deg/s => rad/s
-                ImuRecord imu(move(timestamp), ImuReading(move(acc), move(gyro)));
-                processImu_(imu);
+                RawImu raw;
+                raw.systemTime = chrono::system_clock::now();
+                raw.imu = motion.imu;
+                imuQueue_->push(move(raw));
             }
         }
     }
@@ -232,19 +232,19 @@ void MyntEyeRecorder::openDevice() {
 
     // get camera intrinsics and extrinsics
     StreamIntrinsics streamIntrinsics = cam_->GetStreamIntrinsics(streamMode_);
-    LOG(INFO) << fmt::format("left camera intrinsics: {}", streamIntrinsics.left);
-    LOG(INFO) << fmt::format("right camera intrinsics: {}", streamIntrinsics.right);
+    DLOG(INFO) << fmt::format("left camera intrinsics: {}", streamIntrinsics.left);
+    DLOG(INFO) << fmt::format("right camera intrinsics: {}", streamIntrinsics.right);
     StreamExtrinsics streamExtrinsics = cam_->GetStreamExtrinsics(streamMode_);
-    LOG(INFO) << fmt::format("camera intrinsics: {}", streamExtrinsics);
+    DLOG(INFO) << fmt::format("camera intrinsics: {}", streamExtrinsics);
     // get IMU intrinsics and extrinsics
     MotionIntrinsics motionIntrinsics = cam_->GetMotionIntrinsics();
-    LOG(INFO) << fmt::format("IMU intrinsics: {}", motionIntrinsics);
+    DLOG(INFO) << fmt::format("IMU intrinsics: {}", motionIntrinsics);
     MotionExtrinsics motionExtrinsics = cam_->GetMotionExtrinsics();
-    LOG(INFO) << fmt::format("IMU extrinsics: {}", motionExtrinsics);
+    DLOG(INFO) << fmt::format("IMU extrinsics: {}", motionExtrinsics);
 }
 
-// Create thread to save image, first compress image using turbo jpeg, then save to file
-void MyntEyeRecorder::createImageSaverThread() {
+// Create thread to save image and IMU
+void MyntEyeRecorder::createSaverThread() {
     // create thread for left image
     if (isRightCamEnabled_) {
         LOG(INFO) << fmt::format("create image saver thread for left camera, thread num = {}", saverThreadNum_);
@@ -264,7 +264,8 @@ void MyntEyeRecorder::createImageSaverThread() {
 
                 // compress image from BGR to jpeg
                 RawImageRecord record;
-                record.setTimestamp(job.data().timestamp);
+                record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
+                job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
                 if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
                                 job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
                                 &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
@@ -300,7 +301,8 @@ void MyntEyeRecorder::createImageSaverThread() {
 
                     // compress image from BGR to jpeg
                     RawImageRecord record;
-                    record.setTimestamp(job.data().timestamp);
+                    record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
+                    job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
                     if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
                                     job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
                                     &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
@@ -321,19 +323,31 @@ void MyntEyeRecorder::createImageSaverThread() {
             }));
         }
     }
-}
 
-// Get the timestamp based on timestamp retrieve method
-double MyntEyeRecorder::getTimestamp(const shared_ptr<mynteyed::ImgInfo>& imageInfo) {
-    switch (timestampMethod_) {
-        case TimestampRetrieveMethod::Sensor:
-            DCHECK(imageInfo) << "input null pointer";
-            return imageInfo->timestamp * 1.0E-5;  // 0.01 ms => s
-            break;
+    // create thread to save IMU
+    LOG(INFO) << "create IMU saver thread";
+    imuSaverThread_ = thread([&] {
+        while (true) {
+            // take job and check it's valid
+            auto job = imuQueue_->pop();
+            if (!job.isValid()) {
+                break;
+            }
 
-        case TimestampRetrieveMethod::Host:
-            auto now = chrono::duration_cast<chrono::nanoseconds>(chrono::system_clock::now().time_since_epoch());
-            return now.count() * 1.0E-9;
-            break;
-    }
+            // convert unit
+            static const double kDeg2Rad = M_PI / 180.;
+            double sensorTimestamp = job.data().imu->timestamp * 1.0E-5;  // 0.01 ms => s
+            double systemTimestamp =
+                chrono::duration_cast<chrono::nanoseconds>(job.data().systemTime.time_since_epoch()).count() * 1.0E-9;
+            Vector3d acc = Map<Vector3f>(job.data().imu->accel).cast<double>() * Constant::kG;  // g => m/s^2
+            Vector3d gyro = Map<Vector3f>(job.data().imu->gyro).cast<double>() * kDeg2Rad;      // deg/s => rad/s
+            ImuRecord imu(move(sensorTimestamp), ImuReading(move(acc), move(gyro)));
+            imu.setSystemTimestamp(move(systemTimestamp));
+
+            // process IMU
+            if (processImu_) {
+                processImu_(imu);
+            }
+        }
+    });
 }

@@ -118,7 +118,6 @@ int main(int argc, char* argv[]) {
     recorder->setStreamMode(streamMode);
     recorder->setStreamFormat(streamFormat);
     recorder->setSaverThreadNum(saverThreadNum);
-    recorder->setTimeStampRetrieveMethod(TimestampRetrieveMethod::Sensor);
 
     // init
     recorder->init();
