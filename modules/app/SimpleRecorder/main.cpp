@@ -154,40 +154,50 @@ int main(int argc, char* argv[]) {
     size_t leftImageNum{0}, rightImageNum{0};
     constexpr double kDeg2Rad = M_PI / 180.;
     constexpr double kG{9.81};
+    double lastLeftTimestamp{0};
     while (true) {
         cam.WaitForStream();
 
         // get left stream
-        auto leftStream = cam.GetStreamData(ImageType::IMAGE_LEFT_COLOR);
-        if (leftStream.img && leftStream.img_info) {
-            LOG(INFO) << fmt::format("process left image, index = {}, timestamp = {:.5f} s", leftImageNum,
-                                     leftStream.img_info->timestamp * 1.E-5);
+        auto leftStreams = cam.GetStreamDatas(ImageType::IMAGE_LEFT_COLOR);
+        for (auto& leftStream : leftStreams) {
+            if (leftStream.img && leftStream.img_info) {
+                LOG(INFO) << fmt::format("process left image, index = {}, timestamp = {:.5f} s", leftImageNum,
+                                         leftStream.img_info->timestamp * 1.E-5);
 
-            // get image info
-            auto type = leftStream.img->type();
-            auto format = leftStream.img->format();
-            auto width = leftStream.img->width();
-            auto height = leftStream.img->height();
-            auto is_buffer = leftStream.img->is_buffer();
-            auto frameId = leftStream.img->frame_id();
-            auto is_dual = leftStream.img->is_dual();
-            auto data_size = leftStream.img->data_size();
-            auto valid_size = leftStream.img->valid_size();
-            auto size = leftStream.img->size();
-            auto get_image_profile = leftStream.img->get_image_profile();
+                double currentTime = leftStream.img_info->timestamp * 1.E-5;
+                double delta = currentTime - lastLeftTimestamp;
+                LOG_IF(WARNING, delta > 0.06) << fmt::format(
+                    "lost frame, last timestamp = {:.5f} s, current timestamp  = {:.5f} s, delta time = {:.5f} s",
+                    lastLeftTimestamp, currentTime, delta);
+                lastLeftTimestamp = currentTime;
 
-            Mat img = leftStream.img->To(ImageFormat::COLOR_BGR)->ToMat();
-            fs::path fileName = leftPath / fmt::format("{}.jpg", leftStream.img_info->timestamp * 1.0E4);
-            imwrite(fileName.string(), img);
+                // // get image info
+                // auto type = leftStream.img->type();
+                // auto format = leftStream.img->format();
+                // auto width = leftStream.img->width();
+                // auto height = leftStream.img->height();
+                // auto is_buffer = leftStream.img->is_buffer();
+                // auto frameId = leftStream.img->frame_id();
+                // auto is_dual = leftStream.img->is_dual();
+                // auto data_size = leftStream.img->data_size();
+                // auto valid_size = leftStream.img->valid_size();
+                // auto size = leftStream.img->size();
+                // auto get_image_profile = leftStream.img->get_image_profile();
 
-            // Mat img = leftStream.img->To(ImageFormat::COLOR_BGR)->ToMat();
-            // fs::path fileName = leftPath / fmt::format("{}.jpg", leftStream.img_info->timestamp * 1.0E4);
-            // imwrite(fileName.string(), img);
+                // Mat img = leftStream.img->To(ImageFormat::COLOR_BGR)->ToMat();
+                // fs::path fileName = leftPath / fmt::format("{}.jpg", leftStream.img_info->timestamp * 1.0E4);
+                // imwrite(fileName.string(), img);
 
-            // show
-            // if (showImg || imgNum / 10 == 0) {
-            //     imshow("Left", img);
-            // }
+                // Mat img = leftStream.img->To(ImageFormat::COLOR_BGR)->ToMat();
+                // fs::path fileName = leftPath / fmt::format("{}.jpg", leftStream.img_info->timestamp * 1.0E4);
+                // imwrite(fileName.string(), img);
+
+                // show
+                // if (showImg || imgNum / 10 == 0) {
+                //     imshow("Left", img);
+                // }
+            }
         }
         ++leftImageNum;
 
