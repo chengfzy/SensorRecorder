@@ -66,6 +66,11 @@ class Checker:
         logging.info(f'loading IMU data from file "{self.imu_path}"')
         data = np.loadtxt(str(self.imu_path), delimiter=',', skiprows=1)
 
+        # check if it's empty data
+        if len(data.shape) == 1:
+            logging.warning('empty IMU data')
+            return
+
         # check this file has system timestamp
         if data.shape[1] == 7:
             has_sys_time = False
@@ -95,7 +100,8 @@ class Checker:
                 acc_timestamp.append(t)
                 split_acc.append(a0)
 
-        if len(acc_timestamp) == 0:
+        # check if it's empty data
+        if len(acc_timestamp) == 0 or len(gyro_timestamp) == 0:
             logging.warning('empty IMU data')
             return
 
