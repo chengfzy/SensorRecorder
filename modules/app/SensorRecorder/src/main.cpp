@@ -1,6 +1,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <glog/logging.h>
+#include <sched.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <condition_variable>
@@ -84,6 +85,15 @@ int main(int argc, char* argv[]) {
     google::InitGoogleLogging(argv[0]);
     FLAGS_alsologtostderr = true;
     FLAGS_colorlogtostderr = true;
+
+    // set CPU affinity
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(0, &mask);
+    CPU_SET(1, &mask);
+    if (sched_setaffinity(0, sizeof(mask), &mask) < 0) {
+        LOG(ERROR) << "set CPU affinity failed";
+    }
 
     // get device
     cout << Section("Get MYNT-EYE Device");
