@@ -168,8 +168,9 @@ int main(int argc, char* argv[]) {
                 double currentTime = leftStream.img_info->timestamp * 1.E-5;
                 double delta = currentTime - lastLeftTimestamp;
                 LOG_IF(WARNING, delta > 0.06) << fmt::format(
-                    "lost frame, last timestamp = {:.5f} s, current timestamp  = {:.5f} s, delta time = {:.5f} s",
-                    lastLeftTimestamp, currentTime, delta);
+                    "lost frame, last timestamp = {:.5f} s, current timestamp  = {:.5f} s"
+                    ", delta time = {:.5f} s, N ~ {}",
+                    lastLeftTimestamp, currentTime, delta, delta / 0.033);
                 lastLeftTimestamp = currentTime;
 
                 // // get image info

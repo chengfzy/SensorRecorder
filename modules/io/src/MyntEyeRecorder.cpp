@@ -120,6 +120,10 @@ void MyntEyeRecorder::init() {
 // The main run function
 void MyntEyeRecorder::run() {
     LOG(INFO) << fmt::format("Mynt Eye camera recording...");
+#if defined(DebugTest)
+    int lastTime{0};
+#endif
+
     while (true) {
         if (isStop()) {
             // stop and close camera
@@ -165,6 +169,13 @@ void MyntEyeRecorder::run() {
         // capture left image
         auto leftStream = cam_->GetStreamData(ImageType::IMAGE_LEFT_COLOR);
         if (leftStream.img) {
+#if defined(DebugTest)
+            LOG(INFO) << fmt::format("obtain left frame, t = {}", leftStream.img_info->timestamp);
+            int delta = leftStream.img_info->timestamp - lastTime;
+            LOG_IF(WARNING, delta > 6000) << fmt::format("lost frame, t0 = {}, t1 = {}, deltaT = {}, N ~ {}", lastTime,
+                                                         leftStream.img_info->timestamp, delta, delta / 3300.);
+            lastTime = leftStream.img_info->timestamp;
+#endif
             RawImage raw;
             raw.timestamp = move(leftStream.img_info->timestamp);
             raw.img = move(leftStream.img);
