@@ -169,6 +169,16 @@ class MyntEyeRecorder : public IRecorder {
      */
     void createSaverThread();
 
+    /**
+     * @brief Create thread for save image
+     */
+    void createImageSaverThread();
+
+    /**
+     * @brief Create thread for save IMU
+     */
+    void createImuSaverThread();
+
   private:
     unsigned int deviceIndex_;             // device index
     unsigned int frameRate_;               // frame rate, Hz

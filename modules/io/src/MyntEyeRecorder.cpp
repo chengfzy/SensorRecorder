@@ -260,6 +260,72 @@ void MyntEyeRecorder::openDevice() {
 
 // Create thread to save image and IMU
 void MyntEyeRecorder::createSaverThread() {
+    createImageSaverThread();
+
+    // create thread to save IMU
+    createImuSaverThread();
+}
+
+// Create thread for save image
+void MyntEyeRecorder::createImageSaverThread() {
+    // save function for MJPG format
+    auto jpegFunc = [](shared_ptr<JobQueue<RawImage>>& imageQueue,
+                       const function<void(const RawImageRecord&)>& processFunc) {
+        while (true) {
+            // take job and check it's valid
+            auto job = imageQueue->pop();
+            if (!job.isValid()) {
+                break;
+            }
+
+            // convert unit
+            RawImageRecord record;
+            record.setTimestamp(job.data().timestamp * 1.0E-5);  // 0.01 ms => s
+            record.reading().buffer() = job.data().img->data();
+            record.reading().size() = job.data().img->valid_size();
+
+            // process raw image
+            if (processFunc) {
+                processFunc(record);
+            }
+        }
+    };
+
+    // compress image and then save
+    auto yuyvFunc = [](shared_ptr<JobQueue<RawImage>>& imageQueue,
+                       const function<void(const RawImageRecord&)>& processFunc) {
+        tjhandle compressor = tjInitCompress();
+
+        while (true) {
+            // take job and check it's valid
+            auto job = imageQueue->pop();
+            if (!job.isValid()) {
+                break;
+            }
+
+            // compress image from BGR to jpeg
+            RawImageRecord record;
+            record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
+            job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
+            if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0, job.data().img->height(),
+                            TJPF_BGR, &record.reading().buffer(), &record.reading().size(), TJSAMP_444, 95,
+                            TJFLAG_FASTDCT) != 0) {
+                LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
+            }
+
+            // process raw image
+            if (processFunc) {
+                processFunc(record);
+            }
+
+            // release turbo jpeg data buffer
+            tjFree(record.reading().buffer());
+        }
+
+        // destory compressor
+        tjDestroy(compressor);
+    };
+
     // create thread for left image
     if (isRightCamEnabled_) {
         LOG(INFO) << fmt::format("create image saver thread for left camera, thread num = {}", saverThreadNum_);
@@ -267,113 +333,26 @@ void MyntEyeRecorder::createSaverThread() {
         LOG(INFO) << fmt::format("create image saver thread, thread num = {}", saverThreadNum_);
     }
     for (size_t i = 0; i < saverThreadNum_; ++i) {
-        leftImageSaverThreads_.emplace_back(thread([&]() {
-            tjhandle compressor = tjInitCompress();
-
-            while (true) {
-                // take job and check it's valid
-                auto job = leftImageQueue_->pop();
-                if (!job.isValid()) {
-                    break;
-                }
-
-#if 0
-                // // compress image and save
-                // RawImageRecord record;
-                // record.setTimestamp(job.data().timestamp * 1.0E-5);  // 0.01 ms => s
-                // if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
-                //                 job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
-                //                 &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
-                //     LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
-                // }
-
-                // compress image from BGR to jpeg
-                RawImageRecord record;
-                record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
-                job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
-                record.reading().buffer() = job.data().img->data();
-                record.reading().size() = job.data().img->valid_size();
-
-                // job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
-                // if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
-                //                 job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
-                //                 &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
-                //     LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
-                // }
-#else
-                // compress image from BGR to jpeg
-                RawImageRecord record;
-                record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
-                job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
-                if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
-                                job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
-                                &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
-                    LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
-                }
-#endif
-                // process raw image
-                if (processRawImg_) {
-                    processRawImg_(record);
-                }
-
-                // release turbo jpeg data buffer
-                tjFree(record.reading().buffer());
-            }
-
-            // destory compressor
-            tjDestroy(compressor);
-        }));
-    }
-
-    if (isRightCamEnabled_) {
-        LOG(INFO) << fmt::format("create image saver thread for right camera, thread num = {}", saverThreadNum_);
-        for (size_t i = 0; i < saverThreadNum_; ++i) {
-            rightImageSaverThreads_.emplace_back(thread([&]() {
-                tjhandle compressor = tjInitCompress();
-
-                while (true) {
-                    // take job and check it's valid
-                    auto job = rightImageQueue_->pop();
-                    if (!job.isValid()) {
-                        break;
-                    }
-#if 0
-                    // compress image and save
-                    RawImageRecord record;
-                    record.setTimestamp(job.data().timestamp * 1.0E-5);  // 0.01 ms => s
-                    if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
-                                    job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
-                                    &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
-                        LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
-                    }
-#else
-                    // compress image from BGR to jpeg
-                    RawImageRecord record;
-                    record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
-                    job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
-                    if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0,
-                                    job.data().img->height(), TJPF_BGR, &record.reading().buffer(),
-                                    &record.reading().size(), TJSAMP_444, 95, TJFLAG_FASTDCT) != 0) {
-                        LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
-                    }
-#endif
-
-                    // process raw image
-                    if (processRightRawImg_) {
-                        processRightRawImg_(record);
-                    }
-
-                    // release turbo jpeg data buffer
-                    tjFree(record.reading().buffer());
-                }
-
-                // destory compressor
-                tjDestroy(compressor);
-            }));
+        if (streamFormat_ == StreamFormat::STREAM_MJPG) {
+            leftImageSaverThreads_.emplace_back(thread([&]() { jpegFunc(leftImageQueue_, processRawImg_); }));
+        } else if (streamFormat_ == StreamFormat::STREAM_YUYV) {
+            leftImageSaverThreads_.emplace_back(thread([&]() { yuyvFunc(leftImageQueue_, processRawImg_); }));
         }
     }
 
-    // create thread to save IMU
+    // create stread for right image
+    if (isRightCamEnabled_) {
+        LOG(INFO) << fmt::format("create image saver thread for right camera, thread num = {}", saverThreadNum_);
+        if (streamFormat_ == StreamFormat::STREAM_MJPG) {
+            leftImageSaverThreads_.emplace_back(thread([&]() { jpegFunc(rightImageQueue_, processRightRawImg_); }));
+        } else if (streamFormat_ == StreamFormat::STREAM_YUYV) {
+            leftImageSaverThreads_.emplace_back(thread([&]() { yuyvFunc(rightImageQueue_, processRightRawImg_); }));
+        }
+    }
+}
+
+// Create thread for save IMU
+void MyntEyeRecorder::createImuSaverThread() {
     LOG(INFO) << "create IMU saver thread";
     imuSaverThread_ = thread([&] {
         while (true) {
