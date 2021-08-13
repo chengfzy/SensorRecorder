@@ -1,3 +1,5 @@
+#include <glog/logging.h>
+
 namespace libra {
 namespace util {
 
@@ -44,6 +46,7 @@ template <typename T>
 bool JobQueue<T>::push(T&& data) {
     std::unique_lock<std::mutex> lock(mutex_);
     while (jobs_.size() >= maxJobNums_ && !stop_) {
+        LOG(WARNING) << "queue is full";
         popCondition_.wait(lock);
     }
 
