@@ -179,8 +179,8 @@ int main(int argc, char* argv[]) {
         imuFileStream.open(imuSavePath.string(), ios::out);
         CHECK(imuFileStream.is_open()) << format("cannot open file \"{}\" to save IMU data", imuSavePath.string());
         // write header
-        imuFileStream << "# timestamp(ns), gyro X(rad/s), gyro Y(rad/s), gyro Z(rad/s), acc X(m/s^2), acc "
-                         "Y(m/s^2), acc Z(m/s^2)"
+        imuFileStream << "#SensorTimestamp[ns],SystemTimestamp[ns],GyroX[rad/s],GyroY[rad/s],GyroZ[rad/s]"
+                         ",AccX[m/s^2],AccY[m/s^2],AccZ[m/s^2]"
                       << endl;
     });
 
@@ -283,8 +283,9 @@ int main(int argc, char* argv[]) {
 
     // set process funcion for IMU
     recorder->setProcessFunction([&](const ImuRecord& imu) {
-        // format: timestamp(ns), gyro(rad/s), acc(m/s^2)
-        imuFileStream << format("{:.0f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f}", imu.timestamp() * 1.0E9,
+        // format: sensor timestamp(ns), system timstamp(ns), gyro(rad/s), acc(m/s^2)
+        imuFileStream << format("{:.0f},{:.0f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f}",
+                                imu.timestamp() * 1.0E9, imu.systemTimestamp().value_or(0) * 1.0E9,
                                 imu.reading().gyro()[0], imu.reading().gyro()[1], imu.reading().gyro()[2],
                                 imu.reading().acc()[0], imu.reading().acc()[1], imu.reading().acc()[2])
                       << endl;

@@ -45,7 +45,7 @@ class Record {
   public:
     // getter
     inline const double& timestamp() const { return timestamp_; }
-    inline const std::optional<double>& systemTimestamp() const { return systemTimestamp; }
+    inline const std::optional<double>& systemTimestamp() const { return systemTimestamp_; }
     inline const T& reading() const { return reading_; }
 
     /**
