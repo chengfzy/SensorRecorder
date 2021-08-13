@@ -1,6 +1,6 @@
 # SensorRecorder without GUI
 # This app is just an example for MYNT-EYE camera
-project(SensorRecorderCmd VERSION 1.0.0)   # App has its own version
+project(SensorRecorder VERSION 1.0.0)   # App has its own version
 
 # project files
 file(GLOB_RECURSE FILE_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.*)

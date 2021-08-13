@@ -1,2 +1,2 @@
 # Some application projects
-add_subdirectory(SensorRecorderCmd)
+add_subdirectory(SensorRecorder)
