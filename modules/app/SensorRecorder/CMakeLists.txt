@@ -1,5 +1,4 @@
 # SensorRecorder without GUI
-# This app is just an example for MYNT-EYE camera
 project(SensorRecorder VERSION 1.0.0)   # App has its own version
 
 # project files

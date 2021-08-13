@@ -51,6 +51,10 @@ if (${TurboJpeg_FOUND} AND ${mynteyed_FOUND})
     message(STATUS "Build with MYNT EYE Depth Camera")
     set(WithMyntEyeD ON)
     add_definitions(-DWITH_MYNTEYE_DEPTH)
+    # when SDK build with OpenCV, add WITH_OPENCV macro to enable some features depending on OpenCV, such as ToMat().
+    if (mynteyed_WITH_OPENCV)
+        add_definitions(-DWITH_OPENCV)
+    endif ()
     # add dependency
     list(APPEND DEPEND_INCLUDES
         ${TurboJpeg_INCLUDE_DIRS}
