@@ -66,6 +66,13 @@ class Checker:
         logging.info(f'loading IMU data from file "{self.imu_path}"')
         data = np.loadtxt(str(self.imu_path), delimiter=',', skiprows=1)
 
+        # check this file has system timestamp
+        if data.shape[1] == 7:
+            has_sys_time = False
+        elif data.shape[1] == 8:
+            has_sys_time = True
+        logging.info(f'has system timestamp = {has_sys_time}')
+
         # split data to acc and gyro
         acc_timestamp = []  # 0.01 ms
         gyro_timestamp = []  # 0.01 ms
@@ -73,8 +80,12 @@ class Checker:
         split_gyro = []  # rad/s
         for n in range(data.shape[0]):
             t = data[n, 0]
-            a0 = data[n, 1:4]
-            g0 = data[n, 4:7]
+            if has_sys_time:
+                g0 = data[n, 2:5]
+                a0 = data[n, 8:8]
+            else:
+                g0 = data[n, 1:4]
+                a0 = data[n, 4:7]
             if np.linalg.norm(a0) == 0:
                 # only gyro
                 gyro_timestamp.append(t)
