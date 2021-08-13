@@ -87,7 +87,7 @@ class Checker:
             t = data[n, 0]
             if has_sys_time:
                 g0 = data[n, 2:5]
-                a0 = data[n, 8:8]
+                a0 = data[n, 5:8]
             else:
                 g0 = data[n, 1:4]
                 a0 = data[n, 4:7]
