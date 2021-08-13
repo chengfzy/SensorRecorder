@@ -166,7 +166,8 @@ void MyntEyeRecorder::run() {
         auto leftStream = cam_->GetStreamData(ImageType::IMAGE_LEFT_COLOR);
         if (leftStream.img) {
             RawImage raw;
-            raw.timestamp = leftStream.img_info->timestamp;
+            raw.timestamp = move(leftStream.img_info->timestamp);
+            raw.img = move(leftStream.img);
             leftImageQueue_->push(move(raw));
         }
 
@@ -175,7 +176,8 @@ void MyntEyeRecorder::run() {
             auto rightStream = cam_->GetStreamData(ImageType::IMAGE_RIGHT_COLOR);
             if (rightStream.img) {
                 RawImage raw;
-                raw.timestamp = rightStream.img_info->timestamp;
+                raw.timestamp = move(rightStream.img_info->timestamp);
+                raw.img = move(rightStream.img);
                 rightImageQueue_->push(move(raw));
             }
         }

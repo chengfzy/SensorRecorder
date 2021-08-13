@@ -214,7 +214,7 @@ int main(int argc, char* argv[]) {
 
 #if true
         // remove old files
-        if (leftImageIndex % 200000 == 0) {
+        if (leftImageIndex != 0 && leftImageIndex % 200000 == 0) {
             LOG(WARNING) << fmt::format("remove old left images, index = {}", leftImageIndex);
             // remove old files
             fs::remove_all(leftImageSavePath);
