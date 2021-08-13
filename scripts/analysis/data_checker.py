@@ -10,7 +10,6 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 import argparse
 import logging
 from typing import Tuple, List
-import matplotlib.pyplot as plt
 import numpy as np
 import util
 
@@ -50,6 +49,7 @@ class Checker:
 
         # plot frequency
         if plot_frequency:
+            import matplotlib.pyplot as plt
             self.__plot_imu_frequency(plot_with_index)
             self.__plot_image_frequency(plot_with_index)
 
