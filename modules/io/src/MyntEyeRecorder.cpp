@@ -2,6 +2,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <glog/logging.h>
+#include <jpeglib.h>
 #include <turbojpeg.h>
 #include <boost/date_time.hpp>
 #include <opencv2/opencv.hpp>
@@ -291,7 +292,68 @@ void MyntEyeRecorder::createImageSaverThread() {
         }
     };
 
-    // compress image and then save
+// compress image and then save
+// TODO: cannot found the corresponding method using TurboJPEG, instread by JPEGlib
+#if 1
+    auto yuyvFunc = [](shared_ptr<JobQueue<RawImage>>& imageQueue,
+                       const function<void(const RawImageRecord&)>& processFunc) {
+        while (true) {
+            // take job and check it's valid
+            auto job = imageQueue->pop();
+            if (!job.isValid()) {
+                break;
+            }
+
+            // compress image from BGR to jpeg
+            RawImageRecord record;
+            record.setTimestamp(job.data().timestamp * 1.0E-5);  // 0.01 ms => s
+
+            jpeg_compress_struct cinfo;
+            jpeg_error_mgr jerr;
+            JSAMPROW rowPtr[1];
+            cinfo.err = jpeg_std_error(&jerr);
+            jpeg_create_compress(&cinfo);
+            jpeg_mem_dest(&cinfo, &record.reading().buffer(), &record.reading().size());
+            cinfo.image_width = job.data().img->width() & -1;
+            cinfo.image_height = job.data().img->height() & -1;
+            cinfo.input_components = 3;
+            cinfo.in_color_space = JCS_YCbCr;
+            cinfo.dct_method = JDCT_IFAST;
+
+            jpeg_set_defaults(&cinfo);
+            jpeg_set_quality(&cinfo, 95, TRUE);
+            jpeg_start_compress(&cinfo, TRUE);
+
+            vector<uint8_t> tmprowbuf(job.data().img->width() * 3);
+            JSAMPROW row_pointer[1];
+            row_pointer[0] = &tmprowbuf[0];
+            while (cinfo.next_scanline < cinfo.image_height) {
+                unsigned i, j;
+                unsigned offset = cinfo.next_scanline * cinfo.image_width * 2;  // offset to the correct row
+                for (i = 0, j = 0; i < cinfo.image_width * 2; i += 4, j += 6) {
+                    // input strides by 4 bytes, output strides by 6 (2 pixels)
+                    tmprowbuf[j + 0] = job.data().img->data()[offset + i + 0];  // Y (unique to this pixel)
+                    tmprowbuf[j + 1] = job.data().img->data()[offset + i + 1];  // U (shared between pixels)
+                    tmprowbuf[j + 2] = job.data().img->data()[offset + i + 3];  // V (shared between pixels)
+                    tmprowbuf[j + 3] = job.data().img->data()[offset + i + 2];  // Y (unique to this pixel)
+                    tmprowbuf[j + 4] = job.data().img->data()[offset + i + 1];  // U (shared between pixels)
+                    tmprowbuf[j + 5] = job.data().img->data()[offset + i + 3];  // V (shared between pixels)
+                }
+                jpeg_write_scanlines(&cinfo, row_pointer, 1);
+            }
+
+            jpeg_finish_compress(&cinfo);
+
+            // process raw image
+            if (processFunc) {
+                processFunc(record);
+            }
+
+            // release data
+            jpeg_destroy_compress(&cinfo);
+        }
+    };
+#else
     auto yuyvFunc = [](shared_ptr<JobQueue<RawImage>>& imageQueue,
                        const function<void(const RawImageRecord&)>& processFunc) {
         tjhandle compressor = tjInitCompress();
@@ -325,6 +387,7 @@ void MyntEyeRecorder::createImageSaverThread() {
         // destory compressor
         tjDestroy(compressor);
     };
+#endif
 
     // create thread for left image
     if (isRightCamEnabled_) {
