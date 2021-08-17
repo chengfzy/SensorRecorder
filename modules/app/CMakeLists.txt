@@ -1,7 +1,12 @@
 # application
 
+# recorder for MYNY-EYE camera
 if(${WithMyntEyeD})
-    # recorder for MYNY-EYE camera
     add_subdirectory(MyntSimpleRecorder)
     add_subdirectory(MyntSensorRecorder)
+endif()
+
+# recorder for ZED camera(Open Capture library)
+if(${WithZedOpen})
+    add_subdirectory(ZedSimpleRecorder)
 endif()

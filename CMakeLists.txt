@@ -47,7 +47,7 @@ list(APPEND DEPEND_LIBS
 # find MyntEye camera library
 find_package(mynteyed)      # MyntEye Depth
 find_package(TurboJpeg)     # turbojpeg
-if (${TurboJpeg_FOUND} AND ${mynteyed_FOUND})
+if (${mynteyed_FOUND} AND ${TurboJpeg_FOUND})
     message(STATUS "Build with MYNT EYE Depth Camera")
     set(WithMyntEyeD ON)
     add_definitions(-DWITH_MYNTEYE_DEPTH)
@@ -67,6 +67,26 @@ else ()
     message(STATUS "Build without MYNT EYE Depth Camera")
     set(WithMyntEyeD OFF)
 endif ()
+
+# find ZED Open Capture library
+find_package(ZedOpen)
+if(${ZedOpen_FOUND} AND ${TurboJpeg_FOUND})
+    message(STATUS "Build with ZED Camera(Open Capture library)")
+    set(WithZedOpen ON)
+    add_definitions(-DWITH_ZED_OPEN)
+    # add dependency
+    list(APPEND DEPEND_INCLUDES
+        ${TurboJpeg_INCLUDE_DIRS}
+        ${ZedOpen_INCLUDE_DIRS}
+        )
+    list(APPEND DEPEND_LIBS
+        ${TurboJpeg_LIBRARIES}
+        ${ZedOpen_LIBRARIES}
+        )
+else()
+    message(STATUS "Build without ZED Camera(Open Capture library)")
+    set(WithZed OFF)
+endif()
 
 ###############################################################################
 # Project Setting
