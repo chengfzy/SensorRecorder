@@ -1,4 +1,4 @@
-# MYNT-EYESimple Recorder
+# MYNT-EYE Simple Recorder
 project(MyntSimpleRecorder VERSION 1.0.0) 
 
 # build target
