@@ -2,7 +2,6 @@
 #include <mynteyed/camera.h>
 #include <Eigen/Core>
 #include "libra/io/IRecorder.hpp"
-#include "libra/io/TimestampRetrieveMethod.hpp"
 #include "turbojpeg.h"
 
 namespace libra {
@@ -16,8 +15,7 @@ namespace io {
  *      2. https://mynt-eye-d-sdk.readthedocs.io/zh_CN/latest/index.html
  *      3. https://github.com/slightech/MYNT-EYE-D-SDK
  *
- * The MYNT EYE device has two global shutter camera(left and right) and one IMU, but the obtained IMU acc and gyro
- * don't have the same timestamp, so I just complete the camera recorder.
+ * @note The MYNT EYE device has two global shutter camera(left and right) and one IMU
  *
  * This class has two ImageRecord process function: (1)left (2)right. If only enable one camera, it will use the left
  * one.
@@ -30,8 +28,17 @@ class MyntEyeRecorder : public IRecorder {
      * @note Could also get the exposure time, frame id info
      */
     struct RawImage {
-        std::shared_ptr<mynteyed::Image> img;  //!< image data pointer
-        double timestamp = 0;                  //!< timestamp, s
+        std::shared_ptr<mynteyed::Image> img;  // image data pointer
+        std::uint32_t timestamp = 0;           // sensor timestamp, 0.01 ms
+    };
+
+    /**
+     * @brief Raw IMU with system time point
+     *
+     */
+    struct RawImu {
+        std::shared_ptr<mynteyed::ImuData> imu;                         // IMU data pointer
+        std::chrono::time_point<std::chrono::system_clock> systemTime;  // system time point
     };
 
   public:
@@ -93,13 +100,6 @@ class MyntEyeRecorder : public IRecorder {
     inline const std::size_t& saverThreadNum() const { return saverThreadNum_; }
 
     /**
-     * @brief Get the method to retrieve timestamp
-     *
-     * @return Method to retrieve timestamp
-     */
-    inline TimestampRetrieveMethod timestampRetrieveMethod() const { return timestampMethod_; }
-
-    /**
      * @brief Is the right camera is enabled
      *
      * @return  True for the right camera is enabled, false for not.
@@ -142,13 +142,6 @@ class MyntEyeRecorder : public IRecorder {
     void setSaverThreadNum(const std::size_t& saverThreadNum);
 
     /**
-     * @brief Set the method to retrieve timestamp
-     *
-     * @param method Timestamp retrieve method
-     */
-    void setTimeStampRetrieveMethod(TimestampRetrieveMethod method);
-
-    /**
      * @brief Set process function for raw image record of right camera
      * @param func Process function for raw image record of right camera
      */
@@ -171,29 +164,27 @@ class MyntEyeRecorder : public IRecorder {
     void openDevice();
 
     /**
-     * @brief Create thread to save image, first compress image using turbo jpeg, then save to file
+     * @brief Create thread to save image and IMU. For image, first compress image using turbo jpeg, then save to file.
+     * For IMU, just convert its unit and save to file
      */
+    void createSaverThread();
 
     /**
-     * @brief Create thread to save image, first compress image using turbo jpeg, then save to file
+     * @brief Create thread for save image
      */
     void createImageSaverThread();
 
     /**
-     * @brief Get the timestamp based on timestamp retrieve method
-     *
-     * @param imageInfo Image information obtained from device
-     * @return  Timestamp, s
+     * @brief Create thread for save IMU
      */
-    double getTimestamp(const std::shared_ptr<mynteyed::ImgInfo>& imageInfo);
+    void createImuSaverThread();
 
   private:
-    unsigned int deviceIndex_;                 // device index
-    unsigned int frameRate_;                   // frame rate, Hz
-    mynteyed::StreamMode streamMode_;          // stream mode, could set image size and camera num(left or left + right)
-    mynteyed::StreamFormat streamFormat_;      // stream format, the format used for data transferring
-    std::size_t saverThreadNum_;               // image saver thread number
-    TimestampRetrieveMethod timestampMethod_;  // timestamp retrieve method
+    unsigned int deviceIndex_;             // device index
+    unsigned int frameRate_;               // frame rate, Hz
+    mynteyed::StreamMode streamMode_;      // stream mode, could set image size and camera num(left or left + right)
+    mynteyed::StreamFormat streamFormat_;  // stream format, the format used for data transferring
+    std::size_t saverThreadNum_;           // image saver thread number
     // raw image record process function for right camera
     std::function<void(const core::RawImageRecord&)> processRightRawImg_;
 
@@ -202,8 +193,10 @@ class MyntEyeRecorder : public IRecorder {
     bool isRightCamEnabled_;                                     // right camera is enable or not
     std::shared_ptr<util::JobQueue<RawImage>> leftImageQueue_;   // left raw image queue
     std::shared_ptr<util::JobQueue<RawImage>> rightImageQueue_;  // right raw image queue
+    std::shared_ptr<util::JobQueue<RawImu>> imuQueue_;           // raw IMU queue
     std::vector<std::thread> leftImageSaverThreads_;             // image saver threads
     std::vector<std::thread> rightImageSaverThreads_;            // image saver threads
+    std::thread imuSaverThread_;                                 // IMU saver thread
 };
 
 }  // namespace io

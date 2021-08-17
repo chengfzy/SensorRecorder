@@ -1,6 +1,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <glog/logging.h>
+#include <sched.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <condition_variable>
@@ -85,6 +86,14 @@ int main(int argc, char* argv[]) {
     FLAGS_alsologtostderr = true;
     FLAGS_colorlogtostderr = true;
 
+    // set CPU affinity
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(0, &mask);
+    if (sched_setaffinity(0, sizeof(mask), &mask) < 0) {
+        LOG(ERROR) << "set CPU affinity failed";
+    }
+
     // get device
     cout << Section("Get MYNT-EYE Device");
     auto devices = MyntEyeRecorder::getDevices();
@@ -118,7 +127,6 @@ int main(int argc, char* argv[]) {
     recorder->setStreamMode(streamMode);
     recorder->setStreamFormat(streamFormat);
     recorder->setSaverThreadNum(saverThreadNum);
-    recorder->setTimeStampRetrieveMethod(TimestampRetrieveMethod::Sensor);
 
     // init
     recorder->init();
@@ -170,8 +178,8 @@ int main(int argc, char* argv[]) {
         imuFileStream.open(imuSavePath.string(), ios::out);
         CHECK(imuFileStream.is_open()) << format("cannot open file \"{}\" to save IMU data", imuSavePath.string());
         // write header
-        imuFileStream << "# timestamp(ns), gyro X(rad/s), gyro Y(rad/s), gyro Z(rad/s), acc X(m/s^2), acc "
-                         "Y(m/s^2), acc Z(m/s^2)"
+        imuFileStream << "#SensorTimestamp[ns],SystemTimestamp[ns],GyroX[rad/s],GyroY[rad/s],GyroZ[rad/s]"
+                         ",AccX[m/s^2],AccY[m/s^2],AccZ[m/s^2]"
                       << endl;
     });
 
@@ -215,7 +223,7 @@ int main(int argc, char* argv[]) {
 
 #if true
         // remove old files
-        if (leftImageIndex % 200000 == 0) {
+        if (leftImageIndex != 0 && leftImageIndex % 200000 == 0) {
             LOG(WARNING) << fmt::format("remove old left images, index = {}", leftImageIndex);
             // remove old files
             fs::remove_all(leftImageSavePath);
@@ -274,8 +282,9 @@ int main(int argc, char* argv[]) {
 
     // set process funcion for IMU
     recorder->setProcessFunction([&](const ImuRecord& imu) {
-        // format: timestamp(ns), gyro(rad/s), acc(m/s^2)
-        imuFileStream << format("{:.0f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f}", imu.timestamp() * 1.0E9,
+        // format: sensor timestamp(ns), system timstamp(ns), gyro(rad/s), acc(m/s^2)
+        imuFileStream << format("{:.0f},{:.0f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f},{:.10f}",
+                                imu.timestamp() * 1.0E9, imu.systemTimestamp().value_or(0) * 1.0E9,
                                 imu.reading().gyro()[0], imu.reading().gyro()[1], imu.reading().gyro()[2],
                                 imu.reading().acc()[0], imu.reading().acc()[1], imu.reading().acc()[2])
                       << endl;

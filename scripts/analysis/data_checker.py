@@ -10,7 +10,6 @@ sys.path.append(str(Path(__file__).parent.parent.resolve()))
 import argparse
 import logging
 from typing import Tuple, List
-import matplotlib.pyplot as plt
 import numpy as np
 import util
 
@@ -50,6 +49,7 @@ class Checker:
 
         # plot frequency
         if plot_frequency:
+            import matplotlib.pyplot as plt
             self.__plot_imu_frequency(plot_with_index)
             self.__plot_image_frequency(plot_with_index)
 
@@ -66,6 +66,18 @@ class Checker:
         logging.info(f'loading IMU data from file "{self.imu_path}"')
         data = np.loadtxt(str(self.imu_path), delimiter=',', skiprows=1)
 
+        # check if it's empty data
+        if len(data.shape) == 1:
+            logging.warning('empty IMU data')
+            return
+
+        # check this file has system timestamp
+        if data.shape[1] == 7:
+            has_sys_time = False
+        elif data.shape[1] == 8:
+            has_sys_time = True
+        logging.info(f'has system timestamp = {has_sys_time}')
+
         # split data to acc and gyro
         acc_timestamp = []  # 0.01 ms
         gyro_timestamp = []  # 0.01 ms
@@ -73,8 +85,12 @@ class Checker:
         split_gyro = []  # rad/s
         for n in range(data.shape[0]):
             t = data[n, 0]
-            a0 = data[n, 1:4]
-            g0 = data[n, 4:7]
+            if has_sys_time:
+                g0 = data[n, 2:5]
+                a0 = data[n, 5:8]
+            else:
+                g0 = data[n, 1:4]
+                a0 = data[n, 4:7]
             if np.linalg.norm(a0) == 0:
                 # only gyro
                 gyro_timestamp.append(t)
@@ -84,7 +100,8 @@ class Checker:
                 acc_timestamp.append(t)
                 split_acc.append(a0)
 
-        if len(acc_timestamp) == 0:
+        # check if it's empty data
+        if len(acc_timestamp) == 0 or len(gyro_timestamp) == 0:
             logging.warning('empty IMU data')
             return
 

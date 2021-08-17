@@ -12,7 +12,6 @@ enable_testing()
 ###############################################################################
 # Options
 ###############################################################################
-option(WithQt "With Qt libraries and applications" ON)
 option(DebugTest "Debug test" OFF)
 
 # default build type
@@ -20,23 +19,6 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif ()
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-
-# Qt folder
-if (WithQt)
-    if (UNIX)
-        option(UseSystemQt "Use Qt in system" ON)
-        if (NOT ${UseSystemQt})
-            set(QtFolder "/opt;$ENV{HOME}/Programs;$ENV{HOME}/opt" CACHE PATH "Qt install folder")
-        else ()
-            set(QtFolder "/usr/lib/x86_64-linux-gnu/cmake" CACHE PATH "Qt system folder")
-        endif ()
-    elseif (WIN32)
-        set(QtFolder "D:/Programs/Qt" CACHE PATH "Qt install folder")
-    endif ()
-endif ()
-
-# build doc
-option(BuildDoc "Create and install documents" ON)
 
 ###############################################################################
 # Libraries
@@ -62,22 +44,6 @@ list(APPEND DEPEND_LIBS
     ${OpenCV_LIBRARIES}
     )
 
-
-# find Qt packages and add to library depends
-if (${WithQt})
-    FindAddQtPath(${QtFolder})
-    find_package(Qt5 COMPONENTS Core Widgets Gui)   # Qt
-    if (${Qt5_FOUND})
-        message(STATUS "Build with Qt ${Qt5_VERSION}")
-        list(APPEND DEPEND_LIBS Qt5::Core Qt5::Widgets Qt5::Gui)
-    else ()
-        message(STATUS "Build without Qt")
-        set(WithQt OFF)
-    endif ()
-else ()
-    message(STATUS "Build without Qt")
-endif ()
-
 # find MyntEye camera library
 find_package(mynteyed)      # MyntEye Depth
 find_package(TurboJpeg)     # turbojpeg
@@ -85,6 +51,10 @@ if (${TurboJpeg_FOUND} AND ${mynteyed_FOUND})
     message(STATUS "Build with MYNT EYE Depth Camera")
     set(WithMyntEyeD ON)
     add_definitions(-DWITH_MYNTEYE_DEPTH)
+    # when SDK build with OpenCV, add WITH_OPENCV macro to enable some features depending on OpenCV, such as ToMat().
+    if (mynteyed_WITH_OPENCV)
+        add_definitions(-DWITH_OPENCV)
+    endif ()
     # add dependency
     list(APPEND DEPEND_INCLUDES
         ${TurboJpeg_INCLUDE_DIRS}
