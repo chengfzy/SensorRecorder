@@ -1,5 +1,5 @@
-# SensorRecorder without GUI
-project(SensorRecorder VERSION 1.0.0)   # App has its own version
+# MYNT-EYE SensorRecorder without GUI
+project(Mynt VERSION 1.0.0)   # App has its own version
 
 # project files
 file(GLOB_RECURSE FILE_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/*.*)

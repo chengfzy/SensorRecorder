@@ -1,3 +1,7 @@
-# Some application projects
-add_subdirectory(SimpleRecorder)
-add_subdirectory(SensorRecorder)
+# application
+
+if(${WithMyntEyeD})
+    # recorder for MYNY-EYE camera
+    add_subdirectory(MyntSimpleRecorder)
+    add_subdirectory(MyntSensorRecorder)
+endif()
