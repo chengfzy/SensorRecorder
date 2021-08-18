@@ -166,6 +166,58 @@ TEST_F(YuyvCompressTest, UsingJpeg) {
     jpeg_destroy_compress(&cinfo);
 }
 
+// compress for only left part using jpeg lib
+TEST_F(YuyvCompressTest, UsingJpegLeft) {
+    // compress image using YUYV
+    unsigned char* dest = nullptr;  // dest buffer
+    unsigned long destSize{0};      // dest size
+
+    jpeg_compress_struct cinfo;
+    jpeg_error_mgr jerr;
+    JSAMPROW rowPtr[1];
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_compress(&cinfo);
+    jpeg_mem_dest(&cinfo, &dest, &destSize);
+    cinfo.image_width = (width / 2) & -1;
+    cinfo.image_height = height & -1;
+    cinfo.input_components = 3;
+    cinfo.in_color_space = JCS_YCbCr;
+    cinfo.dct_method = JDCT_IFAST;
+
+    jpeg_set_defaults(&cinfo);
+    jpeg_set_quality(&cinfo, 95, TRUE);
+    jpeg_start_compress(&cinfo, TRUE);
+
+    vector<uint8_t> tmprowbuf(width / 2 * 3);
+    JSAMPROW row_pointer[1];
+    row_pointer[0] = &tmprowbuf[0];
+    while (cinfo.next_scanline < cinfo.image_height) {
+        unsigned i, j;
+        unsigned offset = cinfo.next_scanline * cinfo.image_width * 2 * 2;  // offset to the correct row
+        for (i = 0, j = 0; i < cinfo.image_width * 2; i += 4, j += 6) {
+            // input strides by 4 bytes, output strides by 6 (2 pixels)
+            tmprowbuf[j + 0] = raw.data()[offset + i + 0];  // Y (unique to this pixel)
+            tmprowbuf[j + 1] = raw.data()[offset + i + 1];  // U (shared between pixels)
+            tmprowbuf[j + 2] = raw.data()[offset + i + 3];  // V (shared between pixels)
+            tmprowbuf[j + 3] = raw.data()[offset + i + 2];  // Y (unique to this pixel)
+            tmprowbuf[j + 4] = raw.data()[offset + i + 1];  // U (shared between pixels)
+            tmprowbuf[j + 5] = raw.data()[offset + i + 3];  // V (shared between pixels)
+        }
+        jpeg_write_scanlines(&cinfo, row_pointer, 1);
+    }
+
+    jpeg_finish_compress(&cinfo);
+
+    // show image
+    Mat buf(1, destSize, CV_8UC1, dest);
+    Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
+    imshow("Left BGR Image using Jpeg", bgr);
+    waitKey(1000);
+
+    // release data
+    jpeg_destroy_compress(&cinfo);
+}
+
 /**
  * @brief Speed test
  *
