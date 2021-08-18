@@ -5,12 +5,12 @@
 
 #include <fmt/format.h>
 #include <glog/logging.h>
-#include <gtest/gtest.h>
 #include <jpeglib.h>
 #include <sched.h>
 #include <turbojpeg.h>
 #include <chrono>
 #include <fstream>
+#include <iostream>
 #include <numeric>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -163,8 +163,7 @@ int main(int argc, char* argv[]) {
         }
 
         {
-            // 4. convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using TurboJpeg, and finally write to
-            // file
+            // 4. convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using TurboJpeg, and write to file
             // init compressor
             tjhandle compressor = tjInitCompress();
 
