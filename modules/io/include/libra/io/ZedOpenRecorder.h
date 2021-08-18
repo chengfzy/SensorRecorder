@@ -165,6 +165,7 @@ class ZedOpenRecorder : public IRecorder {
 
     std::shared_ptr<sl_oc::sensors::SensorCapture> imuCapture_;             // sensor(IMU) capture
     std::shared_ptr<sl_oc::video::VideoCapture> cameraCapture_;             // video(camera) capture
+    std::thread imuCaptureThread_;                                          // thread to capture IMU
     std::shared_ptr<util::JobQueue<sl_oc::video::Frame>> leftImageQueue_;   // left raw image queue
     std::shared_ptr<util::JobQueue<sl_oc::video::Frame>> rightImageQueue_;  // right raw image queue
     std::shared_ptr<util::JobQueue<RawImu>> imuQueue_;                      // raw IMU queue

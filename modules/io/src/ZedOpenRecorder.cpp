@@ -90,6 +90,27 @@ void ZedOpenRecorder::setRightProcessFunction(const std::function<void(const cor
 void ZedOpenRecorder::init() {
     openDevice();
 
+    // create IMU capture thread
+    LOG(INFO) << "create IMU capture thread";
+    imuCaptureThread_ = thread([&] {
+        while (true) {
+            if (isStop()) {
+                LOG(INFO) << "stop IMU recording";
+                break;
+            }
+
+            // read IMU data
+            auto imu = imuCapture_->getLastIMUData();
+            if (imu.valid == data::Imu::ImuStatus::NEW_VAL) {
+                RawImu raw;
+                raw.systemTime = chrono::system_clock::now();
+                raw.imu = move(imu);
+                // LOG(INFO) << fmt::format("IMU queue size = {}", leftImageQueue_->size());
+                imuQueue_->push(move(raw));
+            }
+        }
+    });
+
     // check is right camera enabled
     isRightCamEnabled_ = processRightRawImg_.operator bool();
 
@@ -115,7 +136,7 @@ void ZedOpenRecorder::run() {
     while (true) {
         if (isStop()) {
             // stop and close camera
-            LOG(INFO) << "stop ZED camera recording";
+            LOG(INFO) << "stop ZED recording";
 
             // wait queue
             leftImageQueue_->wait();
@@ -126,6 +147,11 @@ void ZedOpenRecorder::run() {
             }
             imuQueue_->wait();
             imuQueue_->stop();
+
+            // wait IMU capture thread
+            if (imuCaptureThread_.joinable()) {
+                imuCaptureThread_.join();
+            }
 
             // wait saver thread
             for (auto& t : leftImageSaverThreads_) {
@@ -166,16 +192,6 @@ void ZedOpenRecorder::run() {
         // capture right image if enable
         if (isRightCamEnabled_) {
             // TODO
-        }
-
-        // read IMU data
-        auto imu = imuCapture_->getLastIMUData();
-        if (imu.valid == data::Imu::ImuStatus::NEW_VAL) {
-            RawImu raw;
-            raw.systemTime = chrono::system_clock::now();
-            raw.imu = move(imu);
-            // LOG(INFO) << fmt::format("IMU queue size = {}", leftImageQueue_->size());
-            imuQueue_->push(move(raw));
         }
     }
 }
