@@ -86,7 +86,7 @@ if(${ZedOpen_FOUND} AND ${TurboJpeg_FOUND})
         )
 else()
     message(STATUS "Build without ZED Camera(Open Capture library)")
-    set(WithZed OFF)
+    set(WithZedOpen OFF)
 endif()
 
 # build testing
