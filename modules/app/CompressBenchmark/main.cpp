@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
             unsigned char* pY = yuvData.data();
             unsigned char* pU = yuvData.data() + width * height;
             unsigned char* pV = yuvData.data() + width * height * 3 / 2;
-            for (int i = 0; i < length; i = i + 4) {
+            for (int i = 0; i < length;) {
                 *pY = raw[i++];
                 *pU = raw[i++];
                 ++pY;
