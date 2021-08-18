@@ -1,4 +1,5 @@
 # application
+add_subdirectory(CompressBenchmark)
 
 # recorder for MYNY-EYE camera
 if(${WithMyntEyeD})
