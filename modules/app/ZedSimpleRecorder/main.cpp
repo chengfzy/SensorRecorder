@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
     cxxopts::Options options(argv[0], "ZED Simple Recorder");
     // clang-format off
     options.add_options()
-        ("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
+        ("f,folder", "save folder", cxxopts::value<string>()->default_value("./data/record"))
         ("d,deviceId", "device index", cxxopts::value<int>()->default_value("-1"))
         ("fps", "FPS", cxxopts::value<int>()->default_value("30"))
         ("resolution", "resolution", cxxopts::value<string>()->default_value("HD720"))

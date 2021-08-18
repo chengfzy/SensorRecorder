@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
     cxxopts::Options options(argv[0], "ZED Sensor Recorder");
     // clang-format off
     options.add_options()
-        ("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
+        ("f,folder", "save folder", cxxopts::value<string>()->default_value("./data/record"))
         ("fps", "FPS", cxxopts::value<int>()->default_value("30"))
         ("resolution", "resolution", cxxopts::value<string>()->default_value("HD720"))
         ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))

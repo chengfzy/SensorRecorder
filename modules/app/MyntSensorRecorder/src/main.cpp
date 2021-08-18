@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
     // argument parser
     cxxopts::Options options(argv[0], "Sensor Recorder without GUI");
     // clang-format off
-    options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
+    options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data/record"))
         ("frameRate", "frame rate", cxxopts::value<int>()->default_value("30"))
         ("streamMode", "stream mode", cxxopts::value<string>()->default_value("1280x720"))
         ("streamFormat", "stream format", cxxopts::value<string>()->default_value("MJPG"))
