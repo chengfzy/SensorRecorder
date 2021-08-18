@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
     // check fps
     vector<int> fpsList = {15, 30, 60, 100};
     if (find_if(fpsList.begin(), fpsList.end(), [&](int v) { return fps == v; }) == fpsList.end()) {
-        cout << fmt::format("input FPS should be one item in {}", fpsList) << endl << endl;
+        cout << fmt::format("input FPS should be one item in {}", fpsList) << endl;
         cout << options.help() << endl;
         return 0;
     }
@@ -79,6 +79,7 @@ int main(int argc, char* argv[]) {
     video::VideoCapture video(params);
     CHECK(video.initializeVideo(deviceId)) << fmt::format("cannot open camera {}", deviceId);
     LOG(INFO) << fmt::format("serial number: {}", video.getSerialNumber());
+    video.setAutoWhiteBalance(true);
 
     // create sensor capture
     cout << Section("Open IMU(SensorCapture)");
