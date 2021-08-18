@@ -39,7 +39,7 @@ class YuyvCompressTest : public testing::Test {
     int width = 1280;           // image width
     int height = 720;           // image height
     vector<unsigned char> raw;  // raw data for YUYV image
-    bool showImage = false;     // whether to show image
+    bool showImage = true;      // whether to show image
 };
 
 // set up
@@ -114,7 +114,7 @@ TEST_F(YuyvCompressTest, UsingOpenCV) {
     cvtColor(yuv, bgr, COLOR_YUV2BGR_YUYV);
     if (showImage) {
         imshow("BGR Image using OpenCV", bgr);
-        waitKey(1000);
+        waitKey(1);
     }
 }
 
@@ -165,7 +165,7 @@ TEST_F(YuyvCompressTest, UsingJpeg) {
     Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
     if (showImage) {
         imshow("BGR Image using Jpeg", bgr);
-        waitKey(1000);
+        waitKey(1);
     }
     // release data
     jpeg_destroy_compress(&cinfo);
@@ -218,7 +218,7 @@ TEST_F(YuyvCompressTest, UsingJpegLeft) {
     Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
     if (showImage) {
         imshow("Left BGR Image using Jpeg", bgr);
-        waitKey(1000);
+        waitKey(1);
     }
 
     // release data
@@ -233,19 +233,16 @@ TEST_F(YuyvCompressTest, UsingTurboJpeg) {
 
     // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar)
     int length = 2 * width * height;
-    vector<unsigned char> yuv(width * height * 2);
-    unsigned char* y = yuv.data();
-    unsigned char* u = yuv.data() + width * height;
-    unsigned char* v = yuv.data() + width * height * 3 / 2;
-    for (int i = 0; i < length; i = i + 4) {
-        *y = raw[i];
-        *u = raw[i + 1];
-        ++y;
-        ++u;
-        *y = raw[i + 2];
-        *v = raw[i + 3];
-        ++y;
-        ++v;
+    vector<unsigned char> yuvData(width * height * 2);
+    unsigned char* pY = yuvData.data();
+    unsigned char* pU = yuvData.data() + width * height;
+    unsigned char* pV = yuvData.data() + width * height * 3 / 2;
+    unsigned char* pRaw = raw.data();
+    for (int i = 0; i < length / 4; ++i) {
+        *pY++ = *(pRaw++);
+        *pU++ = *(pRaw++);
+        *pY++ = *(pRaw++);
+        *pV++ = *(pRaw++);
     }
 
     // compress
@@ -253,8 +250,8 @@ TEST_F(YuyvCompressTest, UsingTurboJpeg) {
     unsigned char* dest = nullptr;  // dest buffer
     unsigned long destSize{0};      // dest size
 
-    if (tjCompressFromYUV(compressor, yuv.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95, TJFLAG_FASTDCT) !=
-        0) {
+    if (tjCompressFromYUV(compressor, yuvData.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95,
+                          TJFLAG_FASTDCT) != 0) {
         LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
     }
 
@@ -263,7 +260,54 @@ TEST_F(YuyvCompressTest, UsingTurboJpeg) {
     Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
     if (showImage) {
         imshow("BGR Image using TurboJpeg", bgr);
-        waitKey(1000);
+        waitKey(0);
+    }
+
+    // release turbo jpeg data buffer
+    tjFree(dest);
+    // destory compressor
+    tjDestroy(compressor);
+}
+
+// compress for only left part using TurboJpeg
+TEST_F(YuyvCompressTest, UsingTurboJpegLeft) {
+    if (raw.empty()) {
+        return;
+    }
+
+    // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar)
+    int newWidth = width / 2;
+    int length = 2 * newWidth * height;
+    vector<unsigned char> yuvData(length);
+    unsigned char* pY = yuvData.data();
+    unsigned char* pU = yuvData.data() + newWidth * height;
+    unsigned char* pV = yuvData.data() + newWidth * height * 3 / 2;
+    for (int j = 0; j < height; ++j) {
+        unsigned char* pRaw = raw.data() + j * width * 2;
+        for (int i = 0; i < width / 4; ++i) {
+            *pY++ = *(pRaw++);
+            *pU++ = *(pRaw++);
+            *pY++ = *(pRaw++);
+            *pV++ = *(pRaw++);
+        }
+    }
+
+    // compress
+    tjhandle compressor = tjInitCompress();
+    unsigned char* dest = nullptr;  // dest buffer
+    unsigned long destSize{0};      // dest size
+
+    if (tjCompressFromYUV(compressor, yuvData.data(), newWidth, 1, height, TJSAMP_422, &dest, &destSize, 95,
+                          TJFLAG_FASTDCT) != 0) {
+        LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
+    }
+
+    // show image
+    Mat buf(1, destSize, CV_8UC1, dest);
+    Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
+    if (showImage) {
+        imshow("Left BGR Image using TurboJpeg", bgr);
+        waitKey(0);
     }
 
     // release turbo jpeg data buffer
@@ -401,19 +445,16 @@ TEST_F(YuyvCompressTest, SpeedTest) {
             // file
             auto t0 = steady_clock::now();
             int length = 2 * width * height;
-            vector<unsigned char> yuv(width * height * 2);
-            unsigned char* y = yuv.data();
-            unsigned char* u = yuv.data() + width * height;
-            unsigned char* v = yuv.data() + width * height * 3 / 2;
-            for (int i = 0; i < length; i = i + 4) {
-                *y = raw[i];
-                *u = raw[i + 1];
-                ++y;
-                ++u;
-                *y = raw[i + 2];
-                *v = raw[i + 3];
-                ++y;
-                ++v;
+            vector<unsigned char> yuvData(width * height * 2);
+            unsigned char* pY = yuvData.data();
+            unsigned char* pU = yuvData.data() + width * height;
+            unsigned char* pV = yuvData.data() + width * height * 3 / 2;
+            unsigned char* pRaw = raw.data();
+            for (int i = 0; i < length; i += 4) {
+                *pY++ = *(pRaw++);
+                *pU++ = *(pRaw++);
+                *pY++ = *(pRaw++);
+                *pV++ = *(pRaw++);
             }
 
             // compress
@@ -421,7 +462,7 @@ TEST_F(YuyvCompressTest, SpeedTest) {
             unsigned char* dest = nullptr;  // dest buffer
             unsigned long destSize{0};      // dest size
 
-            if (tjCompressFromYUV(compressor, yuv.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95,
+            if (tjCompressFromYUV(compressor, yuvData.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95,
                                   TJFLAG_FASTDCT) != 0) {
                 LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
             }
