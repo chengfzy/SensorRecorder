@@ -25,16 +25,19 @@ list(APPEND TurboJpeg_CHECK_INCLUDE_DIRS
         /usr/local/homebrew/include
         /opt/local/var/macports/software
         /opt/local/include
-        /usr/include)
+        /usr/include
+)
 list(APPEND TurboJpeg_CHECK_PATH_SUFFIXES)
 
 list(APPEND TurboJpeg_CHECK_LIBRARY_DIRS
         /usr/local/lib
         /usr/local/homebrew/lib
         /opt/local/lib
-        /usr/lib)
+        /usr/lib
+)
 list(APPEND TurboJpeg_CHECK_LIBRARY_SUFFIXES)
 
+# find turbo-jpeg include
 find_path(TurboJpeg_INCLUDE_DIRS
         NAMES
         turbojpeg.h
@@ -42,7 +45,9 @@ find_path(TurboJpeg_INCLUDE_DIRS
         ${TurboJpeg_INCLUDE_DIR_HINTS}
         ${TurboJpeg_CHECK_INCLUDE_DIRS}
         PATH_SUFFIXES
-        ${TurboJpeg_CHECK_PATH_SUFFIXES})
+        ${TurboJpeg_CHECK_PATH_SUFFIXES}
+)
+# find turbo-jpeg lib
 find_library(TurboJpeg_LIBRARIES
         NAMES
         turbojpeg
@@ -51,11 +56,23 @@ find_library(TurboJpeg_LIBRARIES
         ${TurboJpeg_LIBRARY_DIR_HINTS}
         ${TurboJpeg_CHECK_LIBRARY_DIRS}
         PATH_SUFFIXES
-        ${TurboJpeg_CHECK_LIBRARY_SUFFIXES})
+        ${TurboJpeg_CHECK_LIBRARY_SUFFIXES}
+)
+# find jpeg lib
+find_library(Jpeg_LIBRARIES
+        NAMES
+        jpeg
+        libjpeg
+        PATHS
+        ${TurboJpeg_LIBRARY_DIR_HINTS}
+        ${TurboJpeg_CHECK_LIBRARY_DIRS}
+        PATH_SUFFIXES
+        ${TurboJpeg_CHECK_LIBRARY_SUFFIXES}
+)
 
 if (TurboJpeg_INCLUDE_DIRS AND TurboJpeg_LIBRARIES)
     set(TurboJpeg_FOUND TRUE)
-    set(TurboJpeg_LIBRARIES ${TurboJpeg_LIBRARIES})
+    set(TurboJpeg_LIBRARIES ${TurboJpeg_LIBRARIES} ${Jpeg_LIBRARIES})
     message(STATUS "Found TurboJpeg")
     message(STATUS "  Includes: ${TurboJpeg_INCLUDE_DIRS}")
     message(STATUS "  Libraries: ${TurboJpeg_LIBRARIES}")
