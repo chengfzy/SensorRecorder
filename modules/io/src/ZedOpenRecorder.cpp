@@ -248,7 +248,7 @@ void ZedOpenRecorder::createImageSaverThread() {
             cinfo.err = jpeg_std_error(&jerr);
             jpeg_create_compress(&cinfo);
             jpeg_mem_dest(&cinfo, &record.reading().buffer(), &record.reading().size());
-            cinfo.image_width = job.data().width & -1;
+            cinfo.image_width = (job.data().width / 2) & -1;
             cinfo.image_height = job.data().height & -1;
             cinfo.input_components = 3;
             cinfo.in_color_space = JCS_YCbCr;
@@ -258,12 +258,12 @@ void ZedOpenRecorder::createImageSaverThread() {
             jpeg_set_quality(&cinfo, 95, TRUE);
             jpeg_start_compress(&cinfo, TRUE);
 
-            vector<uint8_t> tmprowbuf(job.data().width * 3);
+            vector<uint8_t> tmprowbuf(job.data().width / 2 * 3);
             JSAMPROW row_pointer[1];
             row_pointer[0] = &tmprowbuf[0];
             while (cinfo.next_scanline < cinfo.image_height) {
                 unsigned i, j;
-                unsigned offset = cinfo.next_scanline * cinfo.image_width * 2;  // offset to the correct row
+                unsigned offset = cinfo.next_scanline * cinfo.image_width * 2 * 2;  // offset to the correct row
                 for (i = 0, j = 0; i < cinfo.image_width * 2; i += 4, j += 6) {
                     // input strides by 4 bytes, output strides by 6 (2 pixels)
                     tmprowbuf[j + 0] = job.data().data[offset + i + 0];  // Y (unique to this pixel)
