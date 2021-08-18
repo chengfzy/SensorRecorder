@@ -26,11 +26,11 @@ int main(int argc, char* argv[]) {
     FLAGS_colorlogtostderr = true;
 
     // argument parser
-    cxxopts::Options options(argv[0], "Recorder");
+    cxxopts::Options options(argv[0], "ZED Simple Recorder");
     // clang-format off
     options.add_options()
         ("f,folder", "save folder", cxxopts::value<string>()->default_value("./data"))
-        ("d,deviceId ", "device index", cxxopts::value<int>()->default_value("-1"))
+        ("d,deviceId", "device index", cxxopts::value<int>()->default_value("-1"))
         ("fps", "FPS", cxxopts::value<int>()->default_value("30"))
         ("resolution", "resolution", cxxopts::value<string>()->default_value("HD720"))
         ("showImage", "show image", cxxopts::value<bool>())
@@ -67,13 +67,27 @@ int main(int argc, char* argv[]) {
     // print input parameters
     cout << Section("Input Parameters");
     cout << fmt::format("save folder: {}", rootFolder) << endl;
-    cout << fmt::format("frame rate = {} Hz", fps) << endl;
+    cout << fmt::format("device ID = {}", deviceId) << endl;
+    cout << fmt::format("FPS = {} Hz", fps) << endl;
+    cout << fmt::format("resolution = {}", resolution) << endl;
     cout << fmt::format("show image: {}", showImg) << endl;
+
+    // parse resolution
+    video::RESOLUTION res;
+    if (resolution == "HD2K") {
+        res = video::RESOLUTION::HD2K;
+    } else if (resolution == "HD1080") {
+        res = video::RESOLUTION::HD1080;
+    } else if (resolution == "HD720") {
+        res = video::RESOLUTION::HD720;
+    } else if (resolution == "VGA") {
+        res = video::RESOLUTION::VGA;
+    }
 
     // create video capture
     cout << Section("Open Camera(VideoCapture)");
     video::VideoParams params;
-    params.res = video::RESOLUTION::HD720;
+    params.res = res;
     params.fps = static_cast<video::FPS>(fps);
     params.verbose = 1;
     video::VideoCapture video(params);
