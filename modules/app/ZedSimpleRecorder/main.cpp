@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
     sensors::SensorCapture sensor(VERBOSITY::INFO);
     // get a list of available camera with sensor
     vector<int> devices = sensor.getDeviceList();
-    LOG_IF(FATAL, devices.empty()) << "cannot found any ZED cameras";
+    LOG_IF(FATAL, devices.empty()) << "cannot found any ZED devices";
     LOG(INFO) << fmt::format("available ZED devices: {}", devices);
     // initialize sensors
     CHECK(sensor.initializeSensors(devices[0])) << fmt::format("cannot init sensor {}", devices[0]);
@@ -118,37 +118,37 @@ int main(int argc, char* argv[]) {
     uint64_t lastCameraTimestamp{0}, lastImuTimestamp{0};
     while (true) {
         // get camera temperature
-        auto temp = sensor.getLastCameraTemperatureData();
-        cout << fmt::format("t = {:.5f} s, left camera temperature = {:.5f}, right camera temperature = {:.5f},",
-                            temp.timestamp * 1.E-9, temp.temp_left, temp.temp_right)
-             << endl;
-
-        // get IMU data
-        auto imu = sensor.getLastIMUData();
-        cout << fmt::format(
-                    "IMU, t = {:.5f} s, acc = [{:.5f}, {:.5f}, {:.5f}] m/s^2"
-                    ", gyro = [{:.5f}, {:.5f}, {:.5f}] deg/s, temperature = {} degree, sync = {}",
-                    imu.timestamp * 1.E-9, imu.aX, imu.aY, imu.aZ, imu.gX, imu.gY, imu.gZ, imu.temp, imu.sync)
-             << endl;
+        // auto temp = sensor.getLastCameraTemperatureData();
+        // cout << fmt::format("t = {:.5f} s, left camera temperature = {:.5f}, right camera temperature = {:.5f},",
+        //                     temp.timestamp * 1.E-9, temp.temp_left, temp.temp_right)
+        //      << endl;
 
         // get image frame
         auto frame = video.getLastFrame();
-        cout << fmt::format("[{}] t = {:.5f} s", frame.frame_id, frame.timestamp * 1.E-9) << endl;
-
-        // calculate frequency and time delay
         uint64_t cameraDeltaT = frame.timestamp - lastCameraTimestamp;
-        uint64_t imuDeltaT = imu.timestamp - lastImuTimestamp;
-        LOG(INFO) << fmt::format("camera delta time = {:.5f}, IMU delta time = {:.5f}", cameraDeltaT * 1.E-9,
-                                 imuDeltaT * 1.E-9);
         lastCameraTimestamp = frame.timestamp;
-        lastImuTimestamp = imu.timestamp;
+        LOG(INFO) << fmt::format("camera delta time = {:.5f} s", cameraDeltaT * 1.E-9);
+        // cout << fmt::format("[{}] t = {:.5f} s", frame.frame_id, frame.timestamp * 1.E-9) << endl;
 
-        // convert from YUV to BGR
-        Mat frameYuv(frame.height, frame.width, CV_8UC2, frame.data);
-        Mat frameBgr;
-        cvtColor(frameYuv, frameBgr, COLOR_YUV2BGR_YUYV);
+#if 0
+        // get IMU data
+        auto imu = sensor.getLastIMUData(10);
+        // cout << fmt::format(
+        //             "IMU, t = {:.5f} s, acc = [{:.5f}, {:.5f}, {:.5f}] m/s^2"
+        //             ", gyro = [{:.5f}, {:.5f}, {:.5f}] deg/s, temperature = {} degree, sync = {}",
+        //             imu.timestamp * 1.E-9, imu.aX, imu.aY, imu.aZ, imu.gX, imu.gY, imu.gZ, imu.temp, imu.sync)
+        //      << endl;
+        uint64_t imuDeltaT = imu.timestamp - lastImuTimestamp;
+        LOG(INFO) << fmt::format("IMU delta time = {:.5f} s", imuDeltaT * 1.E-9);
+        lastImuTimestamp = imu.timestamp;
+#endif
 
         if (showImg) {
+            // convert from YUV to BGR
+            Mat frameYuv(frame.height, frame.width, CV_8UC2, frame.data);
+            Mat frameBgr;
+            cvtColor(frameYuv, frameBgr, COLOR_YUV2BGR_YUYV);
+
             imshow("Image", frameBgr);
             // exit
             auto key = static_cast<char>(waitKey(1));
