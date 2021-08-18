@@ -1,6 +1,10 @@
 /**
- * @brief Test code for YUYV image compression
+ * @brief Benchmark code for YUYV image compression
  *
+ * 1. Convert YUYV to BGR using OpenCV, then write to file
+ * 2. Convert YUYV to BGR using OpenCV, then compress BGR image using turbo-jpeg, finally write to file
+ * 3. Compress YUYV to JPG using jpeg-lib, then write to file
+ * 4. Convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using TurboJpeg, and finally write to file
  */
 
 #include <fmt/format.h>
@@ -22,7 +26,7 @@ using namespace cv;
 using namespace libra::util;
 
 int main(int argc, char* argv[]) {
-    cout << Title("YUYV Compress Speed Test") << endl;
+    cout << Title("YUYV Compress Benchmark") << endl;
 
     // set CPU affinity
     cpu_set_t mask;
@@ -50,7 +54,11 @@ int main(int argc, char* argv[]) {
                              "./data/TurboJpeg.jpg"};
 
     vector<array<double, kAlgNum>> usedTime(kRepeatNum);
-    vector<unsigned char> yuvData;
+    vector<unsigned char> yuvData;  // YUV data for turbojpeg
+    // allocate buffer size before compress
+    int maxBufferSize = tjBufSize(width, height, TJSAMP_422);
+    unsigned char* dest4 = new unsigned char[maxBufferSize];  // dest buffer
+    unsigned long destSize4 = maxBufferSize;                  // dest size
     for (size_t i = 0; i < kRepeatNum; i++) {
         {
             // 1. Convert YUYV to BGR using OpenCV, then write to file
@@ -74,6 +82,7 @@ int main(int argc, char* argv[]) {
             Mat yuv(height, width, CV_8UC2, raw.data());
             Mat bgr;
             cvtColor(yuv, bgr, COLOR_YUV2BGR_YUYV);
+            auto t2 = steady_clock::now();
 
             // compress BGR image using turbojpeg
             unsigned char* dest = nullptr;  // dest buffer
@@ -95,7 +104,8 @@ int main(int argc, char* argv[]) {
 
             auto t1 = steady_clock::now();
             auto dt = duration_cast<duration<double>>(t1 - t0).count();
-            cout << fmt::format(", OpenCV+TurboJpeg = {:.5f} s", dt);
+            auto dt2 = duration_cast<duration<double>>(t2 - t0).count();
+            cout << fmt::format(", OpenCV+TurboJpeg = {:.5f}/{:.5f} s", dt2, dt);
             usedTime[i][1] = dt;
 
             // destory compressor
@@ -147,7 +157,7 @@ int main(int argc, char* argv[]) {
             // write to file
             fstream fs(saveFiles[2], ios::out | ios::binary);
             if (!fs.is_open()) {
-                LOG(ERROR) << fmt::format("cannot create file \"{}\"", saveFiles[1]);
+                LOG(ERROR) << fmt::format("cannot create file \"{}\"", saveFiles[2]);
             }
             fs.write(reinterpret_cast<const char*>(dest), destSize);
             fs.close();
@@ -175,47 +185,43 @@ int main(int argc, char* argv[]) {
             unsigned char* pY = yuvData.data();
             unsigned char* pU = yuvData.data() + width * height;
             unsigned char* pV = yuvData.data() + width * height * 3 / 2;
-            for (int i = 0; i < length;) {
-                *pY = raw[i++];
-                *pU = raw[i++];
-                ++pY;
-                ++pU;
-                *pY = raw[i++];
-                *pV = raw[i++];
-                ++pY;
-                ++pV;
+            unsigned char* pRaw = raw.data();
+            for (int i = 0; i < length / 4; ++i) {
+                *pY++ = *(pRaw++);
+                *pU++ = *(pRaw++);
+                *pY++ = *(pRaw++);
+                *pV++ = *(pRaw++);
             }
+            auto t2 = steady_clock::now();
 
             // compress
-            unsigned char* dest = nullptr;  // dest buffer
-            unsigned long destSize{0};      // dest size
-
-            if (tjCompressFromYUV(compressor, yuvData.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95,
-                                  TJFLAG_FASTDCT) != 0) {
+            if (tjCompressFromYUV(compressor, yuvData.data(), width, 1, height, TJSAMP_422, &dest4, &destSize4, 95,
+                                  TJFLAG_FASTDCT | TJFLAG_NOREALLOC) != 0) {
                 LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
             }
 
             // write to file
             fstream fs(saveFiles[3], ios::out | ios::binary);
             if (!fs.is_open()) {
-                LOG(ERROR) << fmt::format("cannot create file \"{}\"", saveFiles[1]);
+                LOG(ERROR) << fmt::format("cannot create file \"{}\"", saveFiles[3]);
             }
-            fs.write(reinterpret_cast<const char*>(dest), destSize);
+            fs.write(reinterpret_cast<const char*>(dest4), destSize4);
             fs.close();
-
-            // release turbo jpeg data buffer
-            tjFree(dest);
 
             // record time
             auto t1 = steady_clock::now();
             auto dt = duration_cast<duration<double>>(t1 - t0).count();
-            cout << fmt::format(", TurboJpeg = {:.5f} s", dt) << endl;
+            auto dt2 = duration_cast<duration<double>>(t2 - t0).count();
+            cout << fmt::format(", TurboJpeg = {:.5f}/{:.5f} s", dt2, dt) << endl;
             usedTime[i][3] = dt;
 
             // destory compressor
             tjDestroy(compressor);
         }
     }
+
+    // free buffer
+    delete[] dest4;
 
     // calculate the average time
     array<double, kAlgNum> averageTime;
