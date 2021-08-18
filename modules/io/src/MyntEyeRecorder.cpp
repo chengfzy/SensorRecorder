@@ -392,8 +392,7 @@ void MyntEyeRecorder::createImageSaverThread() {
 
             // compress image using turbojpeg
             RawImageRecord record;
-            record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
-            job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
+            record.setTimestamp(job.data().timestamp * 1.0E-5);  // 0.01 ms => s
             if (tjCompressFromYUV(compressor, yuvData.data(), job.data().img->width(), 1, job.data().img->height(),
                                   TJSAMP_422, &record.reading().buffer(), &record.reading().size(), 95,
                                   TJFLAG_FASTDCT) != 0) {
