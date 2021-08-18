@@ -50,6 +50,7 @@ int main(int argc, char* argv[]) {
                              "./data/TurboJpeg.jpg"};
 
     vector<array<double, kAlgNum>> usedTime(kRepeatNum);
+    vector<unsigned char> yuvData;
     for (size_t i = 0; i < kRepeatNum; i++) {
         {
             // 1. Convert YUYV to BGR using OpenCV, then write to file
@@ -66,13 +67,15 @@ int main(int argc, char* argv[]) {
 
         {
             // 2. Convert YUYV to BGR using OpenCV, then compress BGR image using turbo-jpeg, finally write to file
+            // init compressor
+            tjhandle compressor = tjInitCompress();
+
             auto t0 = steady_clock::now();
             Mat yuv(height, width, CV_8UC2, raw.data());
             Mat bgr;
             cvtColor(yuv, bgr, COLOR_YUV2BGR_YUYV);
 
             // compress BGR image using turbojpeg
-            tjhandle compressor = tjInitCompress();
             unsigned char* dest = nullptr;  // dest buffer
             unsigned long destSize{0};      // dest size
             if (tjCompress2(compressor, bgr.data, width, 0, height, TJPF_BGR, &dest, &destSize, TJSAMP_444, 95,
@@ -90,13 +93,13 @@ int main(int argc, char* argv[]) {
             // release turbo jpeg data buffer
             tjFree(dest);
 
-            // destory compressor
-            tjDestroy(compressor);
-
             auto t1 = steady_clock::now();
             auto dt = duration_cast<duration<double>>(t1 - t0).count();
             cout << fmt::format(", OpenCV+TurboJpeg = {:.5f} s", dt);
             usedTime[i][1] = dt;
+
+            // destory compressor
+            tjDestroy(compressor);
         }
 
         {
@@ -162,29 +165,33 @@ int main(int argc, char* argv[]) {
         {
             // 4. convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using TurboJpeg, and finally write to
             // file
+            // init compressor
+            tjhandle compressor = tjInitCompress();
+
             auto t0 = steady_clock::now();
             int length = 2 * width * height;
-            vector<unsigned char> yuv(width * height * 2);
-            unsigned char* y = yuv.data();
-            unsigned char* u = yuv.data() + width * height;
-            unsigned char* v = yuv.data() + width * height * 3 / 2;
+            if (yuvData.size() != length) {
+                yuvData.resize(length);
+            }
+            unsigned char* pY = yuvData.data();
+            unsigned char* pU = yuvData.data() + width * height;
+            unsigned char* pV = yuvData.data() + width * height * 3 / 2;
             for (int i = 0; i < length; i = i + 4) {
-                *y = raw[i];
-                *u = raw[i + 1];
-                ++y;
-                ++u;
-                *y = raw[i + 2];
-                *v = raw[i + 3];
-                ++y;
-                ++v;
+                *pY = raw[i++];
+                *pU = raw[i++];
+                ++pY;
+                ++pU;
+                *pY = raw[i++];
+                *pV = raw[i++];
+                ++pY;
+                ++pV;
             }
 
             // compress
-            tjhandle compressor = tjInitCompress();
             unsigned char* dest = nullptr;  // dest buffer
             unsigned long destSize{0};      // dest size
 
-            if (tjCompressFromYUV(compressor, yuv.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95,
+            if (tjCompressFromYUV(compressor, yuvData.data(), width, 1, height, TJSAMP_422, &dest, &destSize, 95,
                                   TJFLAG_FASTDCT) != 0) {
                 LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
             }
@@ -199,13 +206,15 @@ int main(int argc, char* argv[]) {
 
             // release turbo jpeg data buffer
             tjFree(dest);
-            // destory compressor
-            tjDestroy(compressor);
+
             // record time
             auto t1 = steady_clock::now();
             auto dt = duration_cast<duration<double>>(t1 - t0).count();
             cout << fmt::format(", TurboJpeg = {:.5f} s", dt) << endl;
             usedTime[i][3] = dt;
+
+            // destory compressor
+            tjDestroy(compressor);
         }
     }
 
