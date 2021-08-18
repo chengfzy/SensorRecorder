@@ -39,6 +39,7 @@ class YuyvCompressTest : public testing::Test {
     int width = 1280;           // image width
     int height = 720;           // image height
     vector<unsigned char> raw;  // raw data for YUYV image
+    bool showImage = false;     // whether to show image
 };
 
 // set up
@@ -111,8 +112,10 @@ TEST_F(YuyvCompressTest, UsingOpenCV) {
     Mat yuv(height, width, CV_8UC2, raw.data());
     Mat bgr;
     cvtColor(yuv, bgr, COLOR_YUV2BGR_YUYV);
-    imshow("BGR Image using OpenCV", bgr);
-    waitKey(1000);
+    if (showImage) {
+        imshow("BGR Image using OpenCV", bgr);
+        waitKey(1000);
+    }
 }
 
 // compress using jpeg lib
@@ -160,9 +163,10 @@ TEST_F(YuyvCompressTest, UsingJpeg) {
     // show image
     Mat buf(1, destSize, CV_8UC1, dest);
     Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
-    imshow("BGR Image using Jpeg", bgr);
-    waitKey(1000);
-
+    if (showImage) {
+        imshow("BGR Image using Jpeg", bgr);
+        waitKey(1000);
+    }
     // release data
     jpeg_destroy_compress(&cinfo);
 }
@@ -212,8 +216,10 @@ TEST_F(YuyvCompressTest, UsingJpegLeft) {
     // show image
     Mat buf(1, destSize, CV_8UC1, dest);
     Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
-    imshow("Left BGR Image using Jpeg", bgr);
-    waitKey(1000);
+    if (showImage) {
+        imshow("Left BGR Image using Jpeg", bgr);
+        waitKey(1000);
+    }
 
     // release data
     jpeg_destroy_compress(&cinfo);
@@ -255,8 +261,10 @@ TEST_F(YuyvCompressTest, UsingTurboJpeg) {
     // show image
     Mat buf(1, destSize, CV_8UC1, dest);
     Mat bgr = imdecode(buf, IMREAD_UNCHANGED);
-    imshow("BGR Image using TurboJpeg", bgr);
-    waitKey(1000);
+    if (showImage) {
+        imshow("BGR Image using TurboJpeg", bgr);
+        waitKey(1000);
+    }
 
     // release turbo jpeg data buffer
     tjFree(dest);
