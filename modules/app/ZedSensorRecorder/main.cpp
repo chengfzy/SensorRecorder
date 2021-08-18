@@ -95,6 +95,7 @@ int main(int argc, char* argv[]) {
         res = video::RESOLUTION::VGA;
     }
 
+#if 0
     // set CPU affinity
     cpu_set_t mask;
     CPU_ZERO(&mask);
@@ -102,6 +103,7 @@ int main(int argc, char* argv[]) {
     if (sched_setaffinity(0, sizeof(mask), &mask) < 0) {
         LOG(ERROR) << "set CPU affinity failed";
     }
+#endif
 
     // get device
     cout << Section("Get ZED Device");
@@ -112,7 +114,7 @@ int main(int argc, char* argv[]) {
 
     // set and init
     cout << Section("Start Camera");
-    auto recorder = make_shared<ZedOpenRecorder>(devices.front().first);
+    auto recorder = make_shared<ZedOpenRecorder>();
     recorder->setFps(static_cast<video::FPS>(fps));
     recorder->setResolution(res);
     recorder->setSaverThreadNum(saverThreadNum);
@@ -162,7 +164,7 @@ int main(int argc, char* argv[]) {
     cv::Mat leftImage, rightImage;
 
     // set callback function
-    recorder->addCallback(MyntEyeRecorder::CallBackStarted, [&]() {
+    recorder->addCallback(ZedOpenRecorder::CallBackStarted, [&]() {
         // open IMU file
         imuFileStream.open(imuSavePath.string(), ios::out);
         CHECK(imuFileStream.is_open()) << format("cannot open file \"{}\" to save IMU data", imuSavePath.string());
@@ -173,7 +175,7 @@ int main(int argc, char* argv[]) {
     });
 
     // close file when finished
-    recorder->addCallback(MyntEyeRecorder::CallBackFinished, [&] { imuFileStream.close(); });
+    recorder->addCallback(ZedOpenRecorder::CallBackFinished, [&] { imuFileStream.close(); });
 
     // set process function for left camera
     recorder->setProcessFunction([&](const RawImageRecord& raw) {
