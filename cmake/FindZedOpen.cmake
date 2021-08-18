@@ -72,7 +72,7 @@ find_library(USB1_LIBRARIES
     /usr/lib
     /usr/lib/x86_64-linux-gnu
 )
-# find hidapi
+# find hidapi include
 find_path(HIDAPI_INCLUDE_DIRS
     NAMES
     hidapi.h
@@ -84,16 +84,34 @@ find_path(HIDAPI_INCLUDE_DIRS
     PATH_SUFFIXES
     hidapi
 )
-find_library(HIDAPI_LIBRARIES
-    NAMES
-    hidapi-libusb
-    libhidapi-libusb
-    PATHS
-    /usr/local/lib
-    /usr/lib
-    /usr/lib/x86_64-linux-gnu
-)
+# find hidapi lib
+set(SYS_PROCESSOR ${CMAKE_SYSTEM_PROCESSOR})
+message(STATUS "System processor: ${CMAKE_SYSTEM_PROCESSOR}")
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86*")
+    message(STATUS "Found hidapi-libusb in \"x86_64-linux-gnu\"")
+    find_library(HIDAPI_LIBRARIES
+        NAMES
+        hidapi-libusb
+        libhidapi-libusb
+        PATHS
+        /usr/local/lib
+        /usr/lib/x86_64-linux-gnu
+        /usr/lib
+    )
+elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm*")
+    message(STATUS "Found hidapi-hidraw in \"arm-linux-gnueabihf\"")
+    find_library(HIDAPI_LIBRARIES
+        NAMES
+        hidapi-hidraw
+        libhidapi-hidraw
+        PATHS
+        /usr/local/lib
+        /usr/lib/arm-linux-gnueabihf
+        /usr/lib
+    )
+endif()
 
+# check found success
 if (ZedOpen_INCLUDE_DIRS AND ZedOpen_LIBRARIES AND USB1_LIBRARIES AND HIDAPI_INCLUDE_DIRS AND HIDAPI_LIBRARIES)
     set(ZedOpen_FOUND TRUE)
     list(APPEND ZedOpen_INCLUDE_DIRS ${HIDAPI_INCLUDE_DIRS})
