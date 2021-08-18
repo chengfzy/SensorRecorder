@@ -93,6 +93,11 @@ void ZedOpenRecorder::init() {
     // create IMU capture thread
     LOG(INFO) << "create IMU capture thread";
     imuCaptureThread_ = thread([&] {
+        // wait camera thread start
+        while (!isStart()) {
+            this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
         while (true) {
             if (isStop()) {
                 LOG(INFO) << "stop IMU recording";
@@ -189,10 +194,9 @@ void ZedOpenRecorder::run() {
             leftImageQueue_->push(move(frame));
         }
 
-        // capture right image if enable
-        if (isRightCamEnabled_) {
-            // TODO
-        }
+        // TODO, capture right image if enable
+        // if (isRightCamEnabled_) {
+        // }
     }
 }
 
@@ -226,7 +230,7 @@ void ZedOpenRecorder::openDevice() {
     cameraCapture_->enableSensorSync(imuCapture_.get());
 
     // obtain parameters
-    int width{0}, height{0};
+    int w{0}, height{0};
     cameraCapture_->getFrameSize(width, height);
     // logging
     LOG(INFO) << fmt::format("frame rate = {} Hz", static_cast<int>(fps_));
@@ -243,7 +247,8 @@ void ZedOpenRecorder::createSaverThread() {
 
 // Create thread for save image
 void ZedOpenRecorder::createImageSaverThread() {
-    // compress image and then save
+#if false
+    // compress using jpeglib
     auto yuyvFunc = [](shared_ptr<JobQueue<Frame>>& imageQueue,
                        const function<void(const RawImageRecord&)>& processFunc) {
         while (true) {
@@ -302,6 +307,64 @@ void ZedOpenRecorder::createImageSaverThread() {
             jpeg_destroy_compress(&cinfo);
         }
     };
+#else
+    // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using turbo-jpeg
+    auto yuyvFunc = [](shared_ptr<JobQueue<Frame>>& imageQueue,
+                       const function<void(const RawImageRecord&)>& processFunc) {
+        tjhandle compressor = tjInitCompress();
+        vector<unsigned char> yuvData;
+
+        while (true) {
+            // take job and check it's valid
+            auto job = imageQueue->pop();
+            if (!job.isValid()) {
+                break;
+            }
+
+            // resize buffer if don't match
+            int w = job.data().width / 2;
+            int h = job.data().height;
+            int wh = w * h;
+            int length = 2 * wh;
+            if (yuvData.size() != length) {
+                yuvData.resize(length);
+            }
+
+            // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar)
+            unsigned char* pY = yuvData.data();
+            unsigned char* pU = yuvData.data() + wh;
+            unsigned char* pV = yuvData.data() + wh * 3 / 2;
+            for (int i = 0; i < height; ++i) {
+                unsigned char* pRaw = raw.data() + i * w * 2;
+                for (int j = 0; j < w / 2; ++j) {
+                    *pY++ = *(pRaw++);
+                    *pU++ = *(pRaw++);
+                    *pY++ = *(pRaw++);
+                    *pV++ = *(pRaw++);
+                }
+            }
+
+            // compress image using turbojpeg
+            RawImageRecord record;
+            record.setTimestamp(job.data().timestamp * 1.0E-9);  // ns => s
+            if (tjCompressFromYUV(compressor, yuvData.data(), w, 1, h, TJSAMP_422, &record.reading().buffer(),
+                                  &record.reading().size(), 95, TJFLAG_FASTDCT) != 0) {
+                LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
+            }
+
+            // process raw image
+            if (processFunc) {
+                processFunc(record);
+            }
+
+            // release turbo jpeg data buffer
+            tjFree(record.reading().buffer());
+        }
+
+        // destory compressor
+        tjDestroy(compressor);
+    };
+#endif
 
     // create thread for left image
     if (isRightCamEnabled_) {
