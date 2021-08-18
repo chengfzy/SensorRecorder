@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
 
     // set and init
     cout << Section("Start Camera");
-    auto recorder = make_shared<ZedOpenRecorder>();
+    auto recorder = make_shared<ZedOpenRecorder>(devices[0].first);
     recorder->setFps(static_cast<video::FPS>(fps));
     recorder->setResolution(res);
     recorder->setSaverThreadNum(saverThreadNum);

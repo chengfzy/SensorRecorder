@@ -202,8 +202,7 @@ void ZedOpenRecorder::openDevice() {
     videoParams.verbose = 1;
 #endif
     cameraCapture_ = make_shared<VideoCapture>(videoParams);
-    CHECK(cameraCapture_->initializeVideo(deviceIndex_))
-        << fmt::format("cannot open camera with device index {}", deviceIndex_);
+    CHECK(cameraCapture_->initializeVideo(-1)) << fmt::format("cannot open camera with device index {}", deviceIndex_);
     LOG(INFO) << fmt::format("camera serial number: {}", cameraCapture_->getSerialNumber());
     // auto white balance
     cameraCapture_->setAutoWhiteBalance(true);
