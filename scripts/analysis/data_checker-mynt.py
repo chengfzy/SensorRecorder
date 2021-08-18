@@ -1,5 +1,5 @@
 """
-Checker
+Checker for MYNT-EYE Sensor Data
 """
 
 import sys
@@ -24,9 +24,10 @@ class Checker:
         self.imu_path = self.folder / 'imu.csv'
 
         # raw IMU data
-        self.timestamp = None  # s
-        self.acc = None  # m/s^2
-        self.gyro = None  # rad/s
+        self.acc_timestamp = None  # s
+        self.gyro_timestamp = None  # s
+        self.split_acc = None  # m/s^2
+        self.split_gyro = None  # rad/s
 
         # image files
         self.left_images = None
@@ -76,18 +77,43 @@ class Checker:
             has_sys_time = True
         logging.info(f'has system timestamp = {has_sys_time}')
 
-        # assign data
-        if has_sys_time:
-            self.timestamp = data[:, 0] * 1.E-9  # s
-            self.acc = data[:, 2:5]  # m/s^2
-            self.gyro = data[:, 5:8]  # rad/s
-        else:
-            self.timestamp = data[:, 0] * 1.E-9  # s
-            self.acc = data[:, 1:4]  # m/s^2
-            self.gyro = data[:, 4:7]  # rad/s
+        # split data to acc and gyro
+        acc_timestamp = []  # 0.01 ms
+        gyro_timestamp = []  # 0.01 ms
+        split_acc = []  # g
+        split_gyro = []  # rad/s
+        for n in range(data.shape[0]):
+            t = data[n, 0]
+            if has_sys_time:
+                g0 = data[n, 2:5]
+                a0 = data[n, 5:8]
+            else:
+                g0 = data[n, 1:4]
+                a0 = data[n, 4:7]
+            if np.linalg.norm(a0) == 0:
+                # only gyro
+                gyro_timestamp.append(t)
+                split_gyro.append(g0)
+            elif np.linalg.norm(g0) == 0:
+                # only acc
+                acc_timestamp.append(t)
+                split_acc.append(a0)
+
+        # check if it's empty data
+        if len(acc_timestamp) == 0 or len(gyro_timestamp) == 0:
+            logging.warning('empty IMU data')
+            return
 
         # logging basic info
-        logging.info(f'IMU time range = ({self.timestamp[0]}, {self.timestamp[-1]}), length = {len(self.timestamp)}')
+        logging.info(f' acc time range = ({acc_timestamp[0]}, {acc_timestamp[-1]}), data length = {len(acc_timestamp)}')
+        logging.info(f'gyro time range = ({gyro_timestamp[0]}, {gyro_timestamp[-1]})'
+                     f', data length = {len(gyro_timestamp)}')
+
+        # assign data
+        self.acc_timestamp = np.array(acc_timestamp) * 1.E-9  # s
+        self.gyro_timestamp = np.array(gyro_timestamp) * 1.E-9  # s
+        self.split_acc = np.array(split_acc)  # m/s^2
+        self.split_gyro = np.array(split_gyro)  # rad/s
 
     def __list_images(self) -> None:
         """
@@ -115,16 +141,30 @@ class Checker:
         expect_image_delta_time = 1. / 30  # Image 30 Hz
 
         # check IMU
-        if self.timestamp is not None:
-            print(util.Paragraph('Lost Recording for IMU'))
+        if self.acc_timestamp is not None:
+            # check accelerator
+            print(util.Paragraph('Lost Recording for IMU Accelerator'))
             lost_count = 0
-            for n in range(len(self.timestamp) - 1):
-                delta = (self.timestamp[n + 1] - self.timestamp[n])
+            for n in range(len(self.acc_timestamp) - 1):
+                delta = (self.acc_timestamp[n + 1] - self.acc_timestamp[n])
                 if delta > 2. * expect_imu_delta_time or delta < 0:
-                    print(f'[{n}/{len(self.timestamp)}] t = {self.timestamp[n]:.5f} s'
+                    print(f'[{n}/{len(self.acc_timestamp)}] t = {self.acc_timestamp[n]:.5f} s'
                           f', deltaTime = {delta * 1000:.5f} ms')
                     lost_count += 1
-            print(f'IMU Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(self.timestamp) - 1):.3f}%')
+            print(f'IMU Accelerator, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(self.acc_timestamp) - 1):.3f}%')
+
+            # check gyroscope
+            print(util.Paragraph('Lost Recording for IMU Gyroscope'))
+            lost_count = 0
+            for n in range(len(self.gyro_timestamp) - 1):
+                delta = (self.gyro_timestamp[n + 1] - self.gyro_timestamp[n])
+                if delta > 2. * expect_imu_delta_time or delta < 0:
+                    print(f'[{n}/{len(self.gyro_timestamp)}] t = {self.gyro_timestamp[n]:.5f} s'
+                          f', deltaTime = {delta * 1000:.5f} ms')
+                    lost_count += 1
+            print(f'IMU Gyroscope, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(self.gyro_timestamp) - 1):.3f}%')
 
         # check left images
         if self.left_images is not None:
@@ -157,20 +197,32 @@ class Checker:
         Plot IMU frequency
         """
         # check sensor data
-        if self.timestamp is None:
+        if self.acc_timestamp is None or self.gyro_timestamp is None:
             return
 
         # plot
         fig = plt.figure('IMU Frequency', figsize=self.__figsize)
         # plot accelerator
-        ax = fig.add_subplot()
-        delta_time = (self.timestamp[1:] - self.timestamp[:-1]) * 1000.  # ms
-        ax.set_title('IMU')
+        ax = fig.add_subplot(211)
+        delta_time = (self.acc_timestamp[1:] - self.acc_timestamp[:-1]) * 1000.  # ms
+        ax.set_title('IMU Accelerator')
         if plot_with_index:
-            ax.plot(range(len(self.timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+            ax.plot(range(len(self.acc_timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
             ax.set_xlabel('Index')
         else:
-            ax.plot(self.timestamp[:-1] - self.timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+            ax.plot(self.acc_timestamp[:-1] - self.acc_timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Timestamp (s)')
+        ax.set_ylabel('Delta Time (ms)')
+        ax.grid(True)
+        # plot gyroscope
+        ax = fig.add_subplot(212)
+        delta_time = (self.gyro_timestamp[1:] - self.gyro_timestamp[:-1]) * 1000.  # ms
+        ax.set_title('IMU Gyroscope')
+        if plot_with_index:
+            ax.plot(range(len(self.gyro_timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Index')
+        else:
+            ax.plot(self.gyro_timestamp[:-1] - self.gyro_timestamp[0], delta_time, 'b.', markersize=self.__markersize)
             ax.set_xlabel('Timestamp (s)')
         ax.set_ylabel('Delta Time (ms)')
         ax.grid(True)
