@@ -12,7 +12,8 @@ enable_testing()
 ###############################################################################
 # Options
 ###############################################################################
-option(DebugTest "Debug test" OFF)
+option(DebugTest "Enable debug test info" OFF)
+option(BuildTest "Build testing code" OFF)
 
 # default build type
 if (NOT CMAKE_BUILD_TYPE)
@@ -88,12 +89,31 @@ else()
     set(WithZed OFF)
 endif()
 
+# build testing
+if(BuildTest)
+    # find gtest
+    find_package(GTest)
+    if(GTest_FOUND)
+        # add dependency
+        list(APPEND DEPEND_INCLUDES ${GTEST_INCLUDE_DIRS})
+        list(APPEND DEPEND_LIBS ${GTEST_LIBRARIES})
+    else()
+        set(BuiltTest OFF)
+    endif()
+endif()
+# print info
+if(BuildTest)
+    message(STATUS "Build testing code")
+else()
+    message(STATUS "Build without testing")
+endif()
+
 ###############################################################################
 # Project Setting
 ###############################################################################
 # debug test
 if (DebugTest)
-    message(STATUS "With debug test")
+    message(STATUS "Enable debug test info")
     add_definitions(-DDebugTest)
 endif ()
 
@@ -110,7 +130,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 
 ###############################################################################
 # Project
