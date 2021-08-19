@@ -19,12 +19,15 @@ class Checker:
     def __init__(self, folder: Path) -> None:
         self.folder = folder.resolve()
         # get image folder
+        self.left_image_path = self.folder / 'left.csv'
+        self.right_image_path = self.folder / 'right.csv'
         self.left_folder = self.folder / 'left'
         self.right_folder = self.folder / 'right'
         self.imu_path = self.folder / 'imu.csv'
 
         # raw IMU data
         self.timestamp = None  # s
+        self.system_timestamp = None  # s
         self.acc = None  # m/s^2
         self.gyro = None  # rad/s
 
@@ -79,6 +82,7 @@ class Checker:
         # assign data
         if has_sys_time:
             self.timestamp = data[:, 0] * 1.E-9  # s
+            self.system_timestamp = data[:, 1] * 1.E-9  #s
             self.acc = data[:, 2:5]  # m/s^2
             self.gyro = data[:, 5:8]  # rad/s
         else:
@@ -93,14 +97,25 @@ class Checker:
         """
         List image files
         """
-        if self.left_folder.exists():
+        if self.left_image_path.exists():
+            logging.info(f'loading left image files from file "{self.left_image_path}"')
+            f = open(self.left_image_path, 'r')
+            files = f.readlines()
+            f.close()
+            self.left_images = [Path(v) for v in files]
+        elif self.left_folder.exists():
             logging.info(f'loading left image files from folder "{self.left_folder}"')
             left_images = sorted([f for f in self.left_folder.iterdir() if f.is_file()])
             logging.info(f'left image count = {len(left_images)}')
             if len(left_images) > 0:
                 self.left_images = left_images
-
-        if self.right_folder.exists():
+        if self.right_image_path.exists():
+            logging.info(f'loading right image files from file "{self.right_image_path}"')
+            f = open(self.right_image_path, 'r')
+            files = f.readlines()
+            f.close()
+            self.right_images = [Path(v) for v in files]
+        elif self.right_folder.exists():
             logging.info(f'loading right image files from folder "{self.right_folder}"')
             right_images = sorted([f for f in self.right_folder.iterdir() if f.is_file()])
             logging.info(f'right image count = {len(right_images)}')
@@ -121,8 +136,15 @@ class Checker:
             for n in range(len(self.timestamp) - 1):
                 delta = (self.timestamp[n + 1] - self.timestamp[n])
                 if delta > 2. * expect_imu_delta_time or delta < 0:
-                    print(f'[{n}/{len(self.timestamp)}] t = {self.timestamp[n]:.5f} s'
-                          f', deltaTime = {delta * 1000:.5f} ms')
+                    print(
+                        f'[{n}/{len(self.timestamp)}] t = {self.timestamp[n]:.5f} s'
+                        f', deltaTime = {delta * 1000:.5f} ms',
+                        end='')
+                    if self.system_timestamp is not None:
+                        d = self.system_timestamp[n + 1] - self.system_timestamp[n]
+                        print(f', system delta time = {d*1000:.5f} ms')
+                    else:
+                        print()
                     lost_count += 1
             print(f'IMU Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(self.timestamp) - 1):.3f}%')
 
@@ -236,7 +258,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s %(levelname)s %(filename)s:%(lineno)d] %(message)s")
 
     # argument parser
-    parser = argparse.ArgumentParser(description='Checker for MYNT-EYE Data')
+    parser = argparse.ArgumentParser(description='Checker for Recorded Data')
     parser.add_argument('folder', type=str, help='input and save folder')
     parser.add_argument('--plot-frequency', action='store_true', help='whether to plot frequency')
     parser.add_argument('--plot-with-index', action='store_true', help='whether to plot x label with sensor index')
