@@ -189,8 +189,8 @@ void ZedOpenRecorder::run() {
 #if defined(DebugTest)
             // LOG(INFO) << fmt::format("obtain left frame, t = {} ns", frame.timestamp);
             int delta = frame.timestamp - lastTime;
-            LOG_IF(WARNING, delta > 60E6) << fmt::format("lost frame, t0 = {}, t1 = {}, deltaT = {}, N ~ {}", lastTime,
-                                                         frame.timestamp, delta, delta / 33E6);
+            LOG_IF(WARNING, delta > 60E6) << fmt::format("lost frame, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.2f}",
+                                                         lastTime, frame.timestamp, delta, delta / 33E6);
             lastTime = frame.timestamp;
 #endif
             LOG_IF(INFO, leftImageQueue_->size() >= 20) << fmt::format("left queue size = {}", leftImageQueue_->size());
