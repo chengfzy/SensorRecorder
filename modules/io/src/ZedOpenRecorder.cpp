@@ -338,7 +338,7 @@ void ZedOpenRecorder::createImageSaverThread() {
             unsigned char* pU = yuvData.data() + wh;
             unsigned char* pV = yuvData.data() + wh * 3 / 2;
             for (int i = 0; i < h; ++i) {
-                unsigned char* pRaw = job.data().data + i * w * 2;
+                unsigned char* pRaw = job.data().data + i * w * 4;
                 for (int j = 0; j < w / 2; ++j) {
                     *pY++ = *(pRaw++);
                     *pU++ = *(pRaw++);
