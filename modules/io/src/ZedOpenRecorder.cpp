@@ -122,8 +122,6 @@ void ZedOpenRecorder::init() {
                     RawImu raw;
                     raw.systemTime = chrono::system_clock::now();
                     raw.imu = move(imu);
-                    // LOG_IF(INFO, imuQueue_->size() >= 200) << fmt::format("IMU queue size = {}", imuQueue_->size());
-                    LOG_EVERY_N(INFO, 10) << fmt::format("IMU queue size = {}", imuQueue_->size());
                     imuQueue_->push(move(raw));
                 }
             }
@@ -211,9 +209,8 @@ void ZedOpenRecorder::run() {
                                                          lastTime, frame->timestamp, delta, delta * 0.333E-7);
             lastTime = frame->timestamp;
 #endif
-            // LOG_IF(INFO, leftImageQueue_->size() >= 20) << fmt::format("left queue size = {}",
-            // leftImageQueue_->size());
-            LOG_EVERY_N(INFO, 10) << fmt::format("left queue size = {}", leftImageQueue_->size());
+            LOG_EVERY_N(INFO, 10) << fmt::format("left queue size = {}, IMU queue size = {}", leftImageQueue_->size(),
+                                                 imuQueue_->size());
             leftImageQueue_->push(move(frame));
         }
 
