@@ -392,6 +392,7 @@ void ZedOpenRecorder::createImageSaverThread() {
 void ZedOpenRecorder::createImuSaverThread() {
     LOG(INFO) << "create IMU saver thread";
     imuSaverThread_ = thread([&] {
+        double lastImuTimestamp{0};
         while (true) {
             // take job and check it's valid
             auto job = imuQueue_->pop();
@@ -401,7 +402,11 @@ void ZedOpenRecorder::createImuSaverThread() {
 
             // convert unit
             static const double kDeg2Rad = M_PI / 180.;
-            double sensorTimestamp = job.data().imu.timestamp * 1.0E-9;  // ns => s
+            // skip IMU if
+            if (job.data().imu->timestamp - lastImuTimestamp < 10E6) {
+                continue;
+            }
+            lastImuTimestamp = job.data().imu->timestamp;
             double sensorTimestamp = job.data().imu->timestamp * 1.0E-9;  // ns => s
             double systemTimestamp =
                 chrono::duration_cast<chrono::nanoseconds>(job.data().systemTime.time_since_epoch()).count() * 1.0E-9;
