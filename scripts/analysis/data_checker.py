@@ -111,7 +111,7 @@ class Checker:
         """
         Check frequency, whether some recording is lost
         """
-        expect_imu_delta_time = 1. / 200.  # IMU 200 Hz
+        expect_imu_delta_time = 1. / 100.  # IMU 100 Hz
         expect_image_delta_time = 1. / 30  # Image 30 Hz
 
         # check IMU
