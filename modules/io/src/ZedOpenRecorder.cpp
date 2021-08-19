@@ -121,11 +121,14 @@ void ZedOpenRecorder::init() {
 
     // create image queue
     leftImageQueue_ = make_shared<JobQueue<Frame>>(30);
+    leftImageQueue_->enableDropJob(true);
     if (isRightCamEnabled_) {
         rightImageQueue_ = make_shared<JobQueue<Frame>>(30);
+        rightImageQueue_->enableDropJob(true);
     }
     // create IMU queue
     imuQueue_ = make_shared<JobQueue<RawImu>>(300);
+    imuQueue_->enableDropJob(true);
 
     // create threads to save image and IMU
     createSaverThread();
