@@ -230,7 +230,7 @@ void ZedOpenRecorder::openDevice() {
     cameraCapture_->enableSensorSync(imuCapture_.get());
 
     // obtain parameters
-    int w{0}, height{0};
+    int width{0}, height{0};
     cameraCapture_->getFrameSize(width, height);
     // logging
     LOG(INFO) << fmt::format("frame rate = {} Hz", static_cast<int>(fps_));
@@ -334,8 +334,8 @@ void ZedOpenRecorder::createImageSaverThread() {
             unsigned char* pY = yuvData.data();
             unsigned char* pU = yuvData.data() + wh;
             unsigned char* pV = yuvData.data() + wh * 3 / 2;
-            for (int i = 0; i < height; ++i) {
-                unsigned char* pRaw = raw.data() + i * w * 2;
+            for (int i = 0; i < h; ++i) {
+                unsigned char* pRaw = job.data().data + i * w * 2;
                 for (int j = 0; j < w / 2; ++j) {
                     *pY++ = *(pRaw++);
                     *pU++ = *(pRaw++);
