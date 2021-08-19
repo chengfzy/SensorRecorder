@@ -95,11 +95,12 @@ int main(int argc, char* argv[]) {
         res = video::RESOLUTION::VGA;
     }
 
-#if 0
+#if 1
     // set CPU affinity
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(0, &mask);
+    CPU_SET(1, &mask);
     if (sched_setaffinity(0, sizeof(mask), &mask) < 0) {
         LOG(ERROR) << "set CPU affinity failed";
     }
