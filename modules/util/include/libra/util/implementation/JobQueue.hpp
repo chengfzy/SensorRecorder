@@ -9,7 +9,7 @@ JobQueue<T>::JobQueue() : JobQueue(std::numeric_limits<std::size_t>::max()) {}
 
 // Constructor with maximum job numbers
 template <typename T>
-JobQueue<T>::JobQueue(const std::size_t& maxJobNums) : maxJobNums_(maxJobNums), stop_(false) {}
+JobQueue<T>::JobQueue(const std::size_t& maxJobNums) : maxJobNums_(maxJobNums), dropJob_(false), stop_(false) {}
 
 // Destructor, stop all job queue and exit
 template <typename T>
@@ -24,12 +24,23 @@ std::size_t JobQueue<T>::size() const {
     return jobs_.size();
 }
 
+// Enable/disable drop job data when queue if full
+template <typename T>
+void JobQueue<T>::enableDropJob(bool enable) {
+    dropJob_ = enable;
+}
+
 // Push a new job to the queue, waits if the number of jobs is exceeded
 template <typename T>
 bool JobQueue<T>::push(const T& data) {
     std::unique_lock<std::mutex> lock(mutex_);
     while (jobs_.size() >= maxJobNums_ && !stop_) {
-        popCondition_.wait(lock);
+        LOG(WARNING) << "queue is full";
+        if (dropJob_) {
+            jobs_.pop();
+        } else {
+            popCondition_.wait(lock);
+        }
     }
 
     if (stop_) {
@@ -47,7 +58,11 @@ bool JobQueue<T>::push(T&& data) {
     std::unique_lock<std::mutex> lock(mutex_);
     while (jobs_.size() >= maxJobNums_ && !stop_) {
         LOG(WARNING) << "queue is full";
-        popCondition_.wait(lock);
+        if (dropJob_) {
+            jobs_.pop();
+        } else {
+            popCondition_.wait(lock);
+        }
     }
 
     if (stop_) {
