@@ -105,12 +105,12 @@ void ZedOpenRecorder::init() {
             }
 
             // read IMU data
-            auto imu = imuCapture_->getLastIMUData();
+            auto imu = imuCapture_->getLastIMUData(100000);
             if (imu.valid == data::Imu::ImuStatus::NEW_VAL) {
                 RawImu raw;
                 raw.systemTime = chrono::system_clock::now();
                 raw.imu = move(imu);
-                // LOG(INFO) << fmt::format("IMU queue size = {}", leftImageQueue_->size());
+                LOG_IF(INFO, imuQueue_->size() >= 200) << fmt::format("IMU queue size = {}", imuQueue_->size());
                 imuQueue_->push(move(raw));
             }
         }
@@ -181,7 +181,7 @@ void ZedOpenRecorder::run() {
         }
 
         // capture image
-        auto frame = cameraCapture_->getLastFrame();
+        auto frame = cameraCapture_->getLastFrame(500);
         if (frame.data != nullptr) {
 #if defined(DebugTest)
             LOG(INFO) << fmt::format("obtain left frame, t = {} ns", frame.timestamp);
