@@ -105,7 +105,7 @@ void ZedOpenRecorder::init() {
             }
 
             // read IMU data
-            auto imu = imuCapture_->getLastIMUData(100000);
+            auto imu = imuCapture_->getNewImuData();
             if (imu.valid == data::Imu::ImuStatus::NEW_VAL) {
                 RawImu raw;
                 raw.systemTime = chrono::system_clock::now();
