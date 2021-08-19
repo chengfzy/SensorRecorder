@@ -105,13 +105,15 @@ void ZedOpenRecorder::init() {
             }
 
             // read IMU data
-            auto imu = imuCapture_->getNewImuData();
-            if (imu.valid == data::Imu::ImuStatus::NEW_VAL) {
-                RawImu raw;
-                raw.systemTime = chrono::system_clock::now();
-                raw.imu = move(imu);
-                LOG_IF(INFO, imuQueue_->size() >= 200) << fmt::format("IMU queue size = {}", imuQueue_->size());
-                imuQueue_->push(move(raw));
+            auto imus = imuCapture_->getImuData();
+            for (auto& imu : imus) {
+                if (imu->valid == data::Imu::ImuStatus::NEW_VAL) {
+                    RawImu raw;
+                    raw.systemTime = chrono::system_clock::now();
+                    raw.imu = move(imu);
+                    LOG_IF(INFO, imuQueue_->size() >= 200) << fmt::format("IMU queue size = {}", imuQueue_->size());
+                    imuQueue_->push(move(raw));
+                }
             }
         }
     });
@@ -120,10 +122,10 @@ void ZedOpenRecorder::init() {
     isRightCamEnabled_ = processRightRawImg_.operator bool();
 
     // create image queue
-    leftImageQueue_ = make_shared<JobQueue<Frame>>(30);
+    leftImageQueue_ = make_shared<JobQueue<shared_ptr<ImageFrame>>>(30);
     leftImageQueue_->enableDropJob(true);
     if (isRightCamEnabled_) {
-        rightImageQueue_ = make_shared<JobQueue<Frame>>(30);
+        rightImageQueue_ = make_shared<JobQueue<shared_ptr<ImageFrame>>>(30);
         rightImageQueue_->enableDropJob(true);
     }
     // create IMU queue
@@ -184,14 +186,14 @@ void ZedOpenRecorder::run() {
         }
 
         // capture image
-        auto frame = cameraCapture_->getLastFrame(500);
-        if (frame.data != nullptr) {
+        auto frames = cameraCapture_->getImageFrames();
+        for (auto& frame : frames) {
 #if defined(DebugTest)
             // LOG(INFO) << fmt::format("obtain left frame, t = {} ns", frame.timestamp);
-            int delta = frame.timestamp - lastTime;
+            int delta = frame->timestamp - lastTime;
             LOG_IF(WARNING, delta > 60E6) << fmt::format("lost frame, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.2f}",
-                                                         lastTime, frame.timestamp, delta, delta / 33E6);
-            lastTime = frame.timestamp;
+                                                         lastTime, frame->timestamp, delta, delta / 33E6);
+            lastTime = frame->timestamp;
 #endif
             LOG_IF(INFO, leftImageQueue_->size() >= 20) << fmt::format("left queue size = {}", leftImageQueue_->size());
             leftImageQueue_->push(move(frame));
@@ -252,7 +254,7 @@ void ZedOpenRecorder::createSaverThread() {
 void ZedOpenRecorder::createImageSaverThread() {
 #if false
     // compress using jpeglib
-    auto yuyvFunc = [](shared_ptr<JobQueue<Frame>>& imageQueue,
+    auto yuyvFunc = [](shared_ptr<JobQueue<ImageFrame>>& imageQueue,
                        const function<void(const RawImageRecord&)>& processFunc) {
         while (true) {
             // take job and check it's valid
@@ -312,7 +314,7 @@ void ZedOpenRecorder::createImageSaverThread() {
     };
 #else
     // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using turbo-jpeg
-    auto yuyvFunc = [](shared_ptr<JobQueue<Frame>>& imageQueue,
+    auto yuyvFunc = [](shared_ptr<JobQueue<shared_ptr<ImageFrame>>>& imageQueue,
                        const function<void(const RawImageRecord&)>& processFunc) {
         tjhandle compressor = tjInitCompress();
         vector<unsigned char> yuvData;
@@ -325,8 +327,8 @@ void ZedOpenRecorder::createImageSaverThread() {
             }
 
             // resize buffer if don't match
-            int w = job.data().width / 2;
-            int h = job.data().height;
+            int w = job.data()->width / 2;
+            int h = job.data()->height;
             int wh = w * h;
             int length = 2 * wh;
             if (yuvData.size() != length) {
@@ -338,7 +340,7 @@ void ZedOpenRecorder::createImageSaverThread() {
             unsigned char* pU = yuvData.data() + wh;
             unsigned char* pV = yuvData.data() + wh * 3 / 2;
             for (int i = 0; i < h; ++i) {
-                unsigned char* pRaw = job.data().data + i * w * 4;
+                unsigned char* pRaw = job.data()->data.data() + i * w * 4;
                 for (int j = 0; j < w / 2; ++j) {
                     *pY++ = *(pRaw++);
                     *pU++ = *(pRaw++);
@@ -349,7 +351,7 @@ void ZedOpenRecorder::createImageSaverThread() {
 
             // compress image using turbojpeg
             RawImageRecord record;
-            record.setTimestamp(job.data().timestamp * 1.0E-9);  // ns => s
+            record.setTimestamp(job.data()->timestamp * 1.0E-9);  // ns => s
             if (tjCompressFromYUV(compressor, yuvData.data(), w, 1, h, TJSAMP_422, &record.reading().buffer(),
                                   &record.reading().size(), 95, TJFLAG_FASTDCT) != 0) {
                 LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
@@ -400,10 +402,11 @@ void ZedOpenRecorder::createImuSaverThread() {
             // convert unit
             static const double kDeg2Rad = M_PI / 180.;
             double sensorTimestamp = job.data().imu.timestamp * 1.0E-9;  // ns => s
+            double sensorTimestamp = job.data().imu->timestamp * 1.0E-9;  // ns => s
             double systemTimestamp =
                 chrono::duration_cast<chrono::nanoseconds>(job.data().systemTime.time_since_epoch()).count() * 1.0E-9;
-            Vector3d acc(job.data().imu.aX, job.data().imu.aY, job.data().imu.aZ);
-            Vector3d gyro(job.data().imu.gX, job.data().imu.gY, job.data().imu.gZ);
+            Vector3d acc(job.data().imu->aX, job.data().imu->aY, job.data().imu->aZ);
+            Vector3d gyro(job.data().imu->gX, job.data().imu->gY, job.data().imu->gZ);
             gyro = gyro * kDeg2Rad;
             ImuRecord imu(move(sensorTimestamp), ImuReading(move(acc), move(gyro)));
             imu.setSystemTimestamp(move(systemTimestamp));

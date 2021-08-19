@@ -26,7 +26,7 @@ class ZedOpenRecorder : public IRecorder {
      *
      */
     struct RawImu {
-        sl_oc::sensors::data::Imu imu;                                  // IMU data pointer
+        std::shared_ptr<sl_oc::sensors::data::Imu> imu;                 // IMU data pointer
         std::chrono::time_point<std::chrono::system_clock> systemTime;  // system time point
     };
 
@@ -163,15 +163,17 @@ class ZedOpenRecorder : public IRecorder {
     std::function<void(const core::RawImageRecord&)> processRightRawImg_;
     bool isRightCamEnabled_;  // right camera is enable or not
 
-    std::shared_ptr<sl_oc::sensors::SensorCapture> imuCapture_;             // sensor(IMU) capture
-    std::shared_ptr<sl_oc::video::VideoCapture> cameraCapture_;             // video(camera) capture
-    std::thread imuCaptureThread_;                                          // thread to capture IMU
-    std::shared_ptr<util::JobQueue<sl_oc::video::Frame>> leftImageQueue_;   // left raw image queue
-    std::shared_ptr<util::JobQueue<sl_oc::video::Frame>> rightImageQueue_;  // right raw image queue
-    std::shared_ptr<util::JobQueue<RawImu>> imuQueue_;                      // raw IMU queue
-    std::vector<std::thread> leftImageSaverThreads_;                        // image saver threads
-    std::vector<std::thread> rightImageSaverThreads_;                       // image saver threads
-    std::thread imuSaverThread_;                                            // IMU saver thread
+    std::shared_ptr<sl_oc::sensors::SensorCapture> imuCapture_;  // sensor(IMU) capture
+    std::shared_ptr<sl_oc::video::VideoCapture> cameraCapture_;  // video(camera) capture
+    std::thread imuCaptureThread_;                               // thread to capture IMU
+    // left raw image queue
+    std::shared_ptr<util::JobQueue<std::shared_ptr<sl_oc::video::ImageFrame>>> leftImageQueue_;
+    // right raw image queue
+    std::shared_ptr<util::JobQueue<std::shared_ptr<sl_oc::video::ImageFrame>>> rightImageQueue_;
+    std::shared_ptr<util::JobQueue<RawImu>> imuQueue_;  // raw IMU queue
+    std::vector<std::thread> leftImageSaverThreads_;    // image saver threads
+    std::vector<std::thread> rightImageSaverThreads_;   // image saver threads
+    std::thread imuSaverThread_;                        // IMU saver thread
 };
 
 }  // namespace io
