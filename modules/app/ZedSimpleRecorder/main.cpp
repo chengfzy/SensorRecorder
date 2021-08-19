@@ -123,16 +123,18 @@ int main(int argc, char* argv[]) {
         //                     temp.timestamp * 1.E-9, temp.temp_left, temp.temp_right)
         //      << endl;
 
+#if 0
         // get image frame
         auto frame = video.getLastFrame();
         uint64_t cameraDeltaT = frame.timestamp - lastCameraTimestamp;
         lastCameraTimestamp = frame.timestamp;
         LOG(INFO) << fmt::format("camera delta time = {:.5f} s", cameraDeltaT * 1.E-9);
         // cout << fmt::format("[{}] t = {:.5f} s", frame.frame_id, frame.timestamp * 1.E-9) << endl;
+#endif
 
-#if 0
+#if 1
         // get IMU data
-        auto imu = sensor.getLastIMUData(10);
+        auto imu = sensor.getLastIMUData();
         // cout << fmt::format(
         //             "IMU, t = {:.5f} s, acc = [{:.5f}, {:.5f}, {:.5f}] m/s^2"
         //             ", gyro = [{:.5f}, {:.5f}, {:.5f}] deg/s, temperature = {} degree, sync = {}",
@@ -143,19 +145,19 @@ int main(int argc, char* argv[]) {
         lastImuTimestamp = imu.timestamp;
 #endif
 
-        if (showImg) {
-            // convert from YUV to BGR
-            Mat frameYuv(frame.height, frame.width, CV_8UC2, frame.data);
-            Mat frameBgr;
-            cvtColor(frameYuv, frameBgr, COLOR_YUV2BGR_YUYV);
+        // if (showImg) {
+        //     // convert from YUV to BGR
+        //     Mat frameYuv(frame.height, frame.width, CV_8UC2, frame.data);
+        //     Mat frameBgr;
+        //     cvtColor(frameYuv, frameBgr, COLOR_YUV2BGR_YUYV);
 
-            imshow("Image", frameBgr);
-            // exit
-            auto key = static_cast<char>(waitKey(1));
-            if (key == 27 || key == 'q' || key == 'Q' || key == 'x' || key == 'X') {
-                break;
-            }
-        }
+        //     imshow("Image", frameBgr);
+        //     // exit
+        //     auto key = static_cast<char>(waitKey(1));
+        //     if (key == 27 || key == 'q' || key == 'Q' || key == 'x' || key == 'X') {
+        //         break;
+        //     }
+        // }
     }
 
     google::ShutdownGoogleLogging();

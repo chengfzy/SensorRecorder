@@ -101,6 +101,7 @@ void ZedOpenRecorder::init() {
         // drop old buffer in SDK
         imuCapture_->getImuData();
 
+        uint64_t lastImuTimestamp{0};  // last timestamp
         while (true) {
             if (isStop()) {
                 LOG(INFO) << "stop IMU recording";
@@ -111,6 +112,12 @@ void ZedOpenRecorder::init() {
             auto imus = imuCapture_->getImuData();
             for (auto& imu : imus) {
                 if (imu->valid == data::Imu::ImuStatus::NEW_VAL) {
+                    // drop IMU if too close
+                    if (imu->timestamp - lastImuTimestamp < 10E6) {
+                        continue;
+                    }
+                    lastImuTimestamp = imu->timestamp;
+
                     RawImu raw;
                     raw.systemTime = chrono::system_clock::now();
                     raw.imu = move(imu);
@@ -143,7 +150,7 @@ void ZedOpenRecorder::init() {
 void ZedOpenRecorder::run() {
     LOG(INFO) << fmt::format("ZED camera recording using Open Capture library...");
 #if defined(DebugTest)
-    int lastTime{0};
+    uint64_t lastTime{0};
 #endif
 
     // drop old buffer in SDK
@@ -398,7 +405,6 @@ void ZedOpenRecorder::createImageSaverThread() {
 void ZedOpenRecorder::createImuSaverThread() {
     LOG(INFO) << "create IMU saver thread";
     imuSaverThread_ = thread([&] {
-        double lastImuTimestamp{0};
         while (true) {
             // take job and check it's valid
             auto job = imuQueue_->pop();
@@ -408,11 +414,6 @@ void ZedOpenRecorder::createImuSaverThread() {
 
             // convert unit
             static const double kDeg2Rad = M_PI / 180.;
-            // skip IMU if
-            if (job.data().imu->timestamp - lastImuTimestamp < 10E6) {
-                continue;
-            }
-            lastImuTimestamp = job.data().imu->timestamp;
             double sensorTimestamp = job.data().imu->timestamp * 1.0E-9;  // ns => s
             double systemTimestamp =
                 chrono::duration_cast<chrono::nanoseconds>(job.data().systemTime.time_since_epoch()).count() * 1.0E-9;

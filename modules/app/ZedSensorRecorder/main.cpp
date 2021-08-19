@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
         res = video::RESOLUTION::VGA;
     }
 
-#if 1
+#if 0
     // set CPU affinity
     cpu_set_t mask;
     CPU_ZERO(&mask);
