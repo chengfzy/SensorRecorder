@@ -184,10 +184,10 @@ class Checker:
 
         # plot
         fig = plt.figure('IMU Frequency', figsize=self.__figsize)
-        # plot accelerator
-        ax = fig.add_subplot()
+        # plot index - frequency
+        ax = fig.add_subplot(211)
         delta_time = (self.timestamp[1:] - self.timestamp[:-1]) * 1000.  # ms
-        ax.set_title('IMU')
+        ax.set_title('IMU Frequency')
         if plot_with_index:
             ax.plot(range(len(self.timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
             ax.set_xlabel('Index')
@@ -196,6 +196,23 @@ class Checker:
             ax.set_xlabel('Timestamp (s)')
         ax.set_ylabel('Delta Time (ms)')
         ax.grid(True)
+        # plot index - timestamp
+        ax = fig.add_subplot(212)
+        ax.set_title('IMU Frequency')
+        ax.plot(range(len(self.timestamp)),
+                self.timestamp * 1.E-6,
+                'b.',
+                markersize=self.__markersize,
+                label='Sensor Timestamp')
+        ax.plot(range(len(self.system_timestamp)),
+                self.timestamp * 1.E-6,
+                'r.',
+                markersize=self.__markersize,
+                label='System Timestamp')
+        ax.set_xlabel('Index')
+        ax.set_ylabel('Timestamp (ms)')
+        ax.grid(True)
+        ax.legend()
         fig.tight_layout()
 
     def __plot_image_frequency(self, plot_with_index=True) -> None:
