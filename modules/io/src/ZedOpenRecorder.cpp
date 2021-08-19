@@ -98,6 +98,9 @@ void ZedOpenRecorder::init() {
             this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
+        // drop old buffer in SDK
+        imuCapture_->getImuData();
+
         while (true) {
             if (isStop()) {
                 LOG(INFO) << "stop IMU recording";
@@ -142,6 +145,9 @@ void ZedOpenRecorder::run() {
 #if defined(DebugTest)
     int lastTime{0};
 #endif
+
+    // drop old buffer in SDK
+    cameraCapture_->getImageFrames();
 
     while (true) {
         if (isStop()) {
