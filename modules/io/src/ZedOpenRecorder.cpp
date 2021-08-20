@@ -116,16 +116,16 @@ void ZedOpenRecorder::init() {
                     // // sync only valid if IMU and image are collected at almost the same time
                     // LOG_IF(WARNING, imu->sync) << fmt::format("IMU Sync: {}", imu->sync);
                     // drop IMU if too close
-                    double currentTimestamp = imu->timestamp * 1.E-6;  // ms
-                    if (currentTimestamp - lastImuTimestamp < 10) {
+                    double imuTimestamp = imu->timestamp * 1.E-6;  // ms
+                    if (imuTimestamp - lastImuTimestamp < 10) {
                         continue;
                     }
 #if defined(DebugTest)
-                    double delta = currentTimestamp - lastImuTimestamp;
-                    LOG_IF(WARNING, delta > 20E6) << fmt::format("lost IMU, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.1f}",
-                                                                 lastImuTimestamp, imu->timestamp, delta, delta * 0.1);
+                    double delta = imuTimestamp - lastImuTimestamp;
+                    LOG_IF(WARNING, delta > 20) << fmt::format("lost IMU, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.1f}",
+                                                               lastImuTimestamp, imuTimestamp, delta, delta * 0.1);
 #endif
-                    lastImuTimestamp = currentTimestamp;
+                    lastImuTimestamp = imuTimestamp;
 
                     RawImu raw;
                     raw.systemTime = chrono::system_clock::now();
@@ -158,7 +158,7 @@ void ZedOpenRecorder::init() {
 void ZedOpenRecorder::run() {
     LOG(INFO) << fmt::format("ZED camera recording using Open Capture library...");
 #if defined(DebugTest)
-    uint64_t lastTime{0};
+    double lastTime{0};
 #endif
 
     // drop old buffer in SDK
@@ -212,10 +212,11 @@ void ZedOpenRecorder::run() {
         for (auto& frame : frames) {
 #if defined(DebugTest)
             // LOG(INFO) << fmt::format("obtain left frame, t = {} ns", frame.timestamp);
-            uint64_t delta = frame->timestamp - lastTime;
-            LOG_IF(WARNING, delta > 60E6) << fmt::format("lost image, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.2f}",
-                                                         lastTime, frame->timestamp, delta, delta * 0.333E-7);
-            lastTime = frame->timestamp;
+            double timestamp = frame->timestamp * 1.E-6;  // ms
+            double delta = timestamp - lastTime;
+            LOG_IF(WARNING, delta > 60) << fmt::format("lost image, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.2f}",
+                                                       lastTime, timestamp, delta, delta * 0.033);
+            lastTime = timestamp;
 #endif
             LOG_EVERY_N(INFO, 10) << fmt::format("left queue size = {}, IMU queue size = {}", leftImageQueue_->size(),
                                                  imuQueue_->size());
