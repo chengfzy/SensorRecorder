@@ -203,12 +203,12 @@ class Checker:
         ax = fig.add_subplot(212)
         ax.set_title('IMU Timestamp')
         ax.plot(range(len(self.timestamp)),
-                self.timestamp * 1.E-6,
+                self.timestamp * 1000,
                 'b.',
                 markersize=self.__markersize,
                 label='Sensor Timestamp')
         ax.plot(range(len(self.system_timestamp)),
-                self.system_timestamp * 1.E-6,
+                self.system_timestamp * 1000,
                 'r.',
                 markersize=self.__markersize,
                 label='System Timestamp')
