@@ -247,7 +247,7 @@ class Checker:
             ax = fig.add_subplot(212)
             ax.set_title('Image Timestamp')
             ax.plot(range(len(timestamp)),
-                    timestamp * 1.E-6,
+                    timestamp * 1000,
                     'b.',
                     markersize=self.__markersize,
                     label='Sensor Timestamp')
