@@ -188,24 +188,27 @@ class Checker:
         ax = fig.add_subplot(211)
         delta_time = (self.timestamp[1:] - self.timestamp[:-1]) * 1000.  # ms
         ax.set_title('IMU Frequency')
-        if plot_with_index:
+        if plot_with_index or self.system_timestamp is None:
             ax.plot(range(len(self.timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
             ax.set_xlabel('Index')
         else:
-            ax.plot(self.timestamp[:-1] - self.timestamp[0], delta_time, 'b.', markersize=self.__markersize)
-            ax.set_xlabel('Timestamp (s)')
-        ax.set_ylabel('Delta Time (ms)')
+            ax.plot(self.system_timestamp[:-1] - self.system_timestamp[0],
+                    delta_time,
+                    'b.',
+                    markersize=self.__markersize)
+            ax.set_xlabel('System Timestamp (s)')
+        ax.set_ylabel('Delta Sensor Time (ms)')
         ax.grid(True)
         # plot index - timestamp
         ax = fig.add_subplot(212)
-        ax.set_title('IMU Frequency')
+        ax.set_title('IMU Timestamp')
         ax.plot(range(len(self.timestamp)),
                 self.timestamp * 1.E-6,
                 'b.',
                 markersize=self.__markersize,
                 label='Sensor Timestamp')
         ax.plot(range(len(self.system_timestamp)),
-                self.timestamp * 1.E-6,
+                self.system_timestamp * 1.E-6,
                 'r.',
                 markersize=self.__markersize,
                 label='System Timestamp')
@@ -223,19 +226,12 @@ class Checker:
         if self.left_images is None and self.right_images is None:
             return
 
-        # calculate plot number
-        plot_num = 0
-        if self.left_images is not None:
-            plot_num += 1
-        if self.right_images is not None:
-            plot_num += 1
-
         # plot
         current_plot_index = 1
         fig = plt.figure('Image Frequency', figsize=self.__figsize)
         # plot left image
         if self.left_images is not None:
-            ax = fig.add_subplot(plot_num, 1, current_plot_index)
+            ax = fig.add_subplot(211)
             timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.left_images]))  # s
             delta_time = (timestamp[1:] - timestamp[:-1]) * 1000.  # ms
             ax.set_title('Left Images')
@@ -247,13 +243,26 @@ class Checker:
                 ax.set_xlabel('Timestamp (s)')
             ax.set_ylabel('Delta Time (ms)')
             ax.grid(True)
+            # plot index - timestamp
+            ax = fig.add_subplot(212)
+            ax.set_title('Image Timestamp')
+            ax.plot(range(len(timestamp)),
+                    timestamp * 1.E-6,
+                    'b.',
+                    markersize=self.__markersize,
+                    label='Sensor Timestamp')
+            ax.set_xlabel('Index')
+            ax.set_ylabel('Timestamp (ms)')
+            ax.grid(True)
+            ax.legend()
+            fig.tight_layout()
 
             # add current plot index
             current_plot_index += 1
 
         # plot right image
         if self.right_images is not None:
-            ax = fig.add_subplot(plot_num, 2, current_plot_index)
+            ax = fig.add_subplot(111)
             timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.right_images]))  # s
             delta_time = (timestamp[1:] - timestamp[:-1]) * 1000.  # ms
             ax.set_title('Right Images')
