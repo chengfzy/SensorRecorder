@@ -120,15 +120,20 @@ void ZedOpenRecorder::init() {
                     if (imuTimestamp - lastImuTimestamp < 10) {
                         continue;
                     }
+
+                    RawImu raw;
+                    raw.systemTime = chrono::system_clock::now();
 #if defined(DebugTest)
                     double delta = imuTimestamp - lastImuTimestamp;
                     LOG_IF(WARNING, delta > 20) << fmt::format("lost IMU, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.1f}",
                                                                lastImuTimestamp, imuTimestamp, delta, delta * 0.1);
+                    // LOG_EVERY_N(INFO, 20) << fmt::format(
+                    //     "IMU, sensor timestamp = {:.3f} ms, system timestamp = {:.3f} ms", imuTimestamp,
+                    //     chrono::duration_cast<chrono::nanoseconds>(raw.systemTime.time_since_epoch()).count()
+                    //     * 1.E-6);
 #endif
                     lastImuTimestamp = imuTimestamp;
 
-                    RawImu raw;
-                    raw.systemTime = chrono::system_clock::now();
                     raw.imu = move(imu);
                     imuQueue_->push(move(raw));
                 }
