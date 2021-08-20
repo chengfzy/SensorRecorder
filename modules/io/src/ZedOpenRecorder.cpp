@@ -102,7 +102,7 @@ void ZedOpenRecorder::init() {
         LOG(INFO) << "drop IMU buffer from SDK at begging";
         imuCapture_->getImuData();
 
-        uint64_t lastImuTimestamp{0};  // last timestamp
+        double lastImuTimestamp{0};  // last timestamp
         while (true) {
             if (isStop()) {
                 LOG(INFO) << "stop IMU recording";
@@ -113,11 +113,19 @@ void ZedOpenRecorder::init() {
             auto imus = imuCapture_->getImuData();
             for (auto& imu : imus) {
                 if (imu->valid == data::Imu::ImuStatus::NEW_VAL) {
+                    // // sync only valid if IMU and image are collected at almost the same time
+                    // LOG_IF(WARNING, imu->sync) << fmt::format("IMU Sync: {}", imu->sync);
                     // drop IMU if too close
-                    if (imu->timestamp - lastImuTimestamp < 10E6) {
+                    double currentTimestamp = imu->timestamp * 1.E-6;  // ms
+                    if (currentTimestamp - lastImuTimestamp < 10) {
                         continue;
                     }
-                    lastImuTimestamp = imu->timestamp;
+#if defined(DebugTest)
+                    double delta = currentTimestamp - lastImuTimestamp;
+                    LOG_IF(WARNING, delta > 20E6) << fmt::format("lost IMU, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.1f}",
+                                                                 lastImuTimestamp, imu->timestamp, delta, delta * 0.1);
+#endif
+                    lastImuTimestamp = currentTimestamp;
 
                     RawImu raw;
                     raw.systemTime = chrono::system_clock::now();
@@ -205,7 +213,7 @@ void ZedOpenRecorder::run() {
 #if defined(DebugTest)
             // LOG(INFO) << fmt::format("obtain left frame, t = {} ns", frame.timestamp);
             uint64_t delta = frame->timestamp - lastTime;
-            LOG_IF(WARNING, delta > 60E6) << fmt::format("lost frame, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.2f}",
+            LOG_IF(WARNING, delta > 60E6) << fmt::format("lost image, t0 = {}, t1 = {}, deltaT = {}, N ~ {:.2f}",
                                                          lastTime, frame->timestamp, delta, delta * 0.333E-7);
             lastTime = frame->timestamp;
 #endif
