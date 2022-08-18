@@ -66,6 +66,20 @@ class JobQueue {
     inline bool isStop() const { return stop_; }
 
     /**
+     * @brief Return whether to drop job data when queue is full
+     *
+     * @return  True if drop job data when queue if full, otherwise return false
+     */
+    inline bool dropJob() const { return dropJob_; }
+
+    /**
+     * @brief Enable/disable drop job data when queue if full
+     *
+     * @param drop  True for enable, false for disable
+     */
+    void enableDropJob(bool enable = true);
+
+    /**
      * @brief Push a new job to the queue, waits if the number of jobs is exceeded
      * @param data New job data
      * @return True if push success, false for push fail
@@ -102,6 +116,7 @@ class JobQueue {
 
   private:
     std::size_t maxJobNums_;                  // maximum job numbers
+    bool dropJob_;                            // drop last job data if queue is full
     std::atomic<bool> stop_;                  // flag to indict whether to stop queue
     std::queue<T> jobs_;                      // job queue
     mutable std::mutex mutex_;                // mutex

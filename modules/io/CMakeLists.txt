@@ -10,6 +10,11 @@ if (NOT ${WithMyntEyeD})
     list(REMOVE_ITEM FILE_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/libra/io/MyntEyeRecorder.h)
     list(REMOVE_ITEM FILE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/MyntEyeRecorder.cpp)
 endif ()
+# remove ZED file
+if(NOT ${WithZedOpen})
+    list(REMOVE_ITEM FILE_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/include/libra/io/ZedOpenRecorder.h)
+    list(REMOVE_ITEM FILE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/ZedOpenRecorder.cpp)
+endif()
 
 # build target
 add_library(${PROJECT_NAME} SHARED ${FILE_INCLUDES} ${FILE_SRCS})

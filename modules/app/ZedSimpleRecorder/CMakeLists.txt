@@ -1,5 +1,5 @@
-# MYNT-EYE Simple Recorder
-project(MyntSimpleRecorder VERSION 1.0.0) 
+# ZED Simple Recorder
+project(ZedSimpleRecorder VERSION 1.0.0) 
 
 # build target
 add_executable(${PROJECT_NAME} main.cpp)

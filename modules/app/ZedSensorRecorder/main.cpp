@@ -17,6 +17,7 @@ using namespace fmt;
 using namespace libra::core;
 using namespace libra::io;
 using namespace libra::util;
+using namespace sl_oc;
 namespace fs = boost::filesystem;
 
 /**
@@ -28,16 +29,21 @@ enum class ImageSaveFormat {
 };
 
 int main(int argc, char* argv[]) {
+    cout << Title("ZED Sensor Recorder using Open Source Library") << endl;
+    // init glog
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_alsologtostderr = true;
+    FLAGS_colorlogtostderr = true;
+
     // argument parser
-    cxxopts::Options options(argv[0], "Sensor Recorder without GUI");
+    cxxopts::Options options(argv[0], "ZED Sensor Recorder");
     // clang-format off
-    options.add_options()("f,folder", "save folder", cxxopts::value<string>()->default_value("./data/record"))
-        ("frameRate", "frame rate", cxxopts::value<int>()->default_value("30"))
-        ("streamMode", "stream mode", cxxopts::value<string>()->default_value("1280x720"))
-        ("streamFormat", "stream format", cxxopts::value<string>()->default_value("MJPG"))
+    options.add_options()
+        ("f,folder", "save folder", cxxopts::value<string>()->default_value("./data/record"))
+        ("fps", "FPS", cxxopts::value<int>()->default_value("30"))
+        ("resolution", "resolution", cxxopts::value<string>()->default_value("HD720"))
         ("saverThreadNum", "thread number to save images for each camera", cxxopts::value<int>()->default_value("2"))
-        ("onlyLeft", "only process left camera", cxxopts::value<bool>())
-        ("showImage", "show image or not", cxxopts::value<bool>())
+        ("showImage", "show image", cxxopts::value<bool>())
         ("h,help", "help message");
     // clang-format on
     auto result = options.parse(argc, argv);
@@ -46,86 +52,72 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     string saveRootFolder = result["folder"].as<string>();
-    int frameRate = result["frameRate"].as<int>();
-    string streamModeName = result["streamMode"].as<string>();
-    string streamFormatName = result["streamFormat"].as<string>();
+    int fps = result["fps"].as<int>();
+    string resolution = result["resolution"].as<string>();
     int saverThreadNum = result["saverThreadNum"].as<int>();
-    // this option only used for RP4+YUYV, which cannot open only left camera
-    bool onlyLeft = result["onlyLeft"].as<bool>();
     bool showImage = result["showImage"].as<bool>();
 
-    // check stream mode
-    vector<string> streamModeNames = {"2560x720", "1280x720", "1280x480", "640x480"};
-    if (find_if(streamModeNames.begin(), streamModeNames.end(),
-                [&](const string& s) { return boost::iequals(s, streamModeName); }) == streamModeNames.end()) {
-        cout << format("input detector type should be one item in {}", streamModeNames) << endl << endl;
-        cout << options.help() << endl;
-        return 0;
-    }
-    // check stream format
-    vector<string> streamFormatNames = {"YUYV", "MJPG"};
-    if (find_if(streamFormatNames.begin(), streamFormatNames.end(),
-                [&](const string& s) { return boost::iequals(s, streamFormatName); }) == streamFormatNames.end()) {
-        cout << format("input stream format should be one item in {}", streamFormatNames) << endl << endl;
+    // check fps
+    vector<int> fpsList = {15, 30, 60, 100};
+    if (find_if(fpsList.begin(), fpsList.end(), [&](int v) { return fps == v; }) == fpsList.end()) {
+        cout << fmt::format("input FPS should be one item in {}", fpsList) << endl;
         cout << options.help() << endl;
         return 0;
     }
 
-    cout << Title("Sensor Recorder without GUI");
-    cout << format("save folder: {}", saveRootFolder) << endl;
-    cout << format("frame rate = {} Hz", frameRate) << endl;
-    cout << format("stream mode: {}", streamModeName) << endl;
-    cout << format("stream format: {}", streamFormatName) << endl;
-    cout << format("saver thread number = {}", saverThreadNum) << endl;
-    cout << format("only process left camera = {}", onlyLeft) << endl;
-    cout << format("show image = {}", showImage) << endl;
+    // check resultion
+    vector<string> resolutions = {"HD2K", "HD1080", "HD720", "VGA"};
+    if (find_if(resolutions.begin(), resolutions.end(),
+                [&](const string& v) { return boost::iequals(v, resolution); }) == resolutions.end()) {
+        cout << fmt::format("input resolution should be one item in {}", resolutions) << endl << endl;
+        cout << options.help() << endl;
+        return 0;
+    }
+
+    // print input parameters
+    cout << Section("Input Parameters");
+    cout << fmt::format("save folder: {}", saveRootFolder) << endl;
+    cout << fmt::format("FPS = {} Hz", fps) << endl;
+    cout << fmt::format("resolution = {}", resolution) << endl;
+    cout << fmt::format("saver thread number = {}", saverThreadNum) << endl;
+    cout << fmt::format("show image: {}", showImage) << endl;
     ImageSaveFormat saveFormat = ImageSaveFormat::Kalibr;  // save format
 
-    // init glog
-    google::InitGoogleLogging(argv[0]);
-    FLAGS_alsologtostderr = true;
-    FLAGS_colorlogtostderr = true;
+    // parse resolution
+    video::RESOLUTION res;
+    if (resolution == "HD2K") {
+        res = video::RESOLUTION::HD2K;
+    } else if (resolution == "HD1080") {
+        res = video::RESOLUTION::HD1080;
+    } else if (resolution == "HD720") {
+        res = video::RESOLUTION::HD720;
+    } else if (resolution == "VGA") {
+        res = video::RESOLUTION::VGA;
+    }
 
+#if 0
     // set CPU affinity
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(0, &mask);
+    CPU_SET(1, &mask);
     if (sched_setaffinity(0, sizeof(mask), &mask) < 0) {
         LOG(ERROR) << "set CPU affinity failed";
     }
+#endif
 
     // get device
-    cout << Section("Get MYNT-EYE Device");
-    auto devices = MyntEyeRecorder::getDevices();
+    cout << Section("Get ZED Device");
+    auto devices = ZedOpenRecorder::getDevices();
     if (devices.empty()) {
         return 0;
     }
 
-    // get stream mode from string
-    mynteyed::StreamMode streamMode;
-    if (boost::iequals(streamModeName, "2560x720")) {
-        streamMode = mynteyed::StreamMode::STREAM_2560x720;
-    } else if (boost::iequals(streamModeName, "1280x720")) {
-        streamMode = mynteyed::StreamMode::STREAM_1280x720;
-    } else if (boost::iequals(streamModeName, "1280x480")) {
-        streamMode = mynteyed::StreamMode::STREAM_1280x480;
-    } else if (boost::iequals(streamModeName, "640x480")) {
-        streamMode = mynteyed::StreamMode::STREAM_640x480;
-    }
-    // get stream format from string
-    mynteyed::StreamFormat streamFormat;
-    if (boost::iequals(streamFormatName, "YUYV")) {
-        streamFormat = mynteyed::StreamFormat::STREAM_YUYV;
-    } else if (boost::iequals(streamFormatName, "MJPG")) {
-        streamFormat = mynteyed::StreamFormat::STREAM_MJPG;
-    }
-
     // set and init
     cout << Section("Start Camera");
-    auto recorder = make_shared<MyntEyeRecorder>(devices.front().first);
-    recorder->setFrameRate(frameRate);
-    recorder->setStreamMode(streamMode);
-    recorder->setStreamFormat(streamFormat);
+    auto recorder = make_shared<ZedOpenRecorder>(devices[0].first);
+    recorder->setFps(static_cast<video::FPS>(fps));
+    recorder->setResolution(res);
     recorder->setSaverThreadNum(saverThreadNum);
 
     // init
@@ -152,7 +144,7 @@ int main(int argc, char* argv[]) {
     }
 
     // create right save folder
-    if (!onlyLeft && recorder->isRightCamEnabled()) {
+    if (false && recorder->isRightCamEnabled()) {
         cout << format("right image path: {}", rightImageSavePath.string()) << endl;
         if (!fs::create_directories(rightImageSavePath)) {
             LOG(ERROR) << format("cannot create folder \"{}\" to save right image", rightImageSavePath.string());
@@ -173,7 +165,7 @@ int main(int argc, char* argv[]) {
     cv::Mat leftImage, rightImage;
 
     // set callback function
-    recorder->addCallback(MyntEyeRecorder::CallBackStarted, [&]() {
+    recorder->addCallback(ZedOpenRecorder::CallBackStarted, [&]() {
         // open IMU file
         imuFileStream.open(imuSavePath.string(), ios::out);
         CHECK(imuFileStream.is_open()) << format("cannot open file \"{}\" to save IMU data", imuSavePath.string());
@@ -184,7 +176,7 @@ int main(int argc, char* argv[]) {
     });
 
     // close file when finished
-    recorder->addCallback(MyntEyeRecorder::CallBackFinished, [&] { imuFileStream.close(); });
+    recorder->addCallback(ZedOpenRecorder::CallBackFinished, [&] { imuFileStream.close(); });
 
     // set process function for left camera
     recorder->setProcessFunction([&](const RawImageRecord& raw) {
@@ -221,7 +213,7 @@ int main(int argc, char* argv[]) {
             showImageCv.notify_one();
         }
 
-#if true
+#if false
         // remove old files
         if (leftImageIndex != 0 && leftImageIndex % 200000 == 0) {
             LOG(WARNING) << fmt::format("remove old left images, index = {}", leftImageIndex);
@@ -241,7 +233,7 @@ int main(int argc, char* argv[]) {
     });
 
     // set process function for right camera
-    if (!onlyLeft && recorder->isRightCamEnabled()) {
+    if (false) {
         // set process function, for right camera
         recorder->setRightProcessFunction([&](const RawImageRecord& raw) {
             LOG_EVERY_N(INFO, 100) << fmt::format("process right image, index = {}, timestamp = {:.5f} s",
@@ -304,7 +296,7 @@ int main(int argc, char* argv[]) {
         // show image
         if (showImage) {
             cv::imshow("Left Image", leftImage);
-            if (!onlyLeft && recorder->isRightCamEnabled()) {
+            if (recorder->isRightCamEnabled()) {
                 cv::imshow("Right Image", rightImage);
             }
             int ret = cv::waitKey(1);

@@ -10,5 +10,10 @@ add_subdirectory(util)
 add_subdirectory(core)
 add_subdirectory(io)
 
+# test
+if(BuildTest)
+    add_subdirectory(test)
+endif()
+
 # applications
 add_subdirectory(app)

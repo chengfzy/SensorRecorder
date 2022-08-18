@@ -1,5 +1,5 @@
 """
-Checker
+Checker for MYNT-EYE Sensor Data
 """
 
 import sys
@@ -19,17 +19,15 @@ class Checker:
     def __init__(self, folder: Path) -> None:
         self.folder = folder.resolve()
         # get image folder
-        self.left_image_path = self.folder / 'left.csv'
-        self.right_image_path = self.folder / 'right.csv'
         self.left_folder = self.folder / 'left'
         self.right_folder = self.folder / 'right'
         self.imu_path = self.folder / 'imu.csv'
 
         # raw IMU data
-        self.timestamp = None  # s
-        self.system_timestamp = None  # s
-        self.acc = None  # m/s^2
-        self.gyro = None  # rad/s
+        self.acc_timestamp = None  # s
+        self.gyro_timestamp = None  # s
+        self.split_acc = None  # m/s^2
+        self.split_gyro = None  # rad/s
 
         # image files
         self.left_images = None
@@ -79,43 +77,56 @@ class Checker:
             has_sys_time = True
         logging.info(f'has system timestamp = {has_sys_time}')
 
-        # assign data
-        if has_sys_time:
-            self.timestamp = data[:, 0] * 1.E-9  # s
-            self.system_timestamp = data[:, 1] * 1.E-9  #s
-            self.acc = data[:, 2:5]  # m/s^2
-            self.gyro = data[:, 5:8]  # rad/s
-        else:
-            self.timestamp = data[:, 0] * 1.E-9  # s
-            self.acc = data[:, 1:4]  # m/s^2
-            self.gyro = data[:, 4:7]  # rad/s
+        # split data to acc and gyro
+        acc_timestamp = []  # 0.01 ms
+        gyro_timestamp = []  # 0.01 ms
+        split_acc = []  # g
+        split_gyro = []  # rad/s
+        for n in range(data.shape[0]):
+            t = data[n, 0]
+            if has_sys_time:
+                g0 = data[n, 2:5]
+                a0 = data[n, 5:8]
+            else:
+                g0 = data[n, 1:4]
+                a0 = data[n, 4:7]
+            if np.linalg.norm(a0) == 0:
+                # only gyro
+                gyro_timestamp.append(t)
+                split_gyro.append(g0)
+            elif np.linalg.norm(g0) == 0:
+                # only acc
+                acc_timestamp.append(t)
+                split_acc.append(a0)
+
+        # check if it's empty data
+        if len(acc_timestamp) == 0 or len(gyro_timestamp) == 0:
+            logging.warning('empty IMU data')
+            return
 
         # logging basic info
-        logging.info(f'IMU time range = ({self.timestamp[0]}, {self.timestamp[-1]}), length = {len(self.timestamp)}')
+        logging.info(f' acc time range = ({acc_timestamp[0]}, {acc_timestamp[-1]}), data length = {len(acc_timestamp)}')
+        logging.info(f'gyro time range = ({gyro_timestamp[0]}, {gyro_timestamp[-1]})'
+                     f', data length = {len(gyro_timestamp)}')
+
+        # assign data
+        self.acc_timestamp = np.array(acc_timestamp) * 1.E-9  # s
+        self.gyro_timestamp = np.array(gyro_timestamp) * 1.E-9  # s
+        self.split_acc = np.array(split_acc)  # m/s^2
+        self.split_gyro = np.array(split_gyro)  # rad/s
 
     def __list_images(self) -> None:
         """
         List image files
         """
-        if self.left_image_path.exists():
-            logging.info(f'loading left image files from file "{self.left_image_path}"')
-            f = open(self.left_image_path, 'r')
-            files = f.readlines()
-            f.close()
-            self.left_images = [Path(v) for v in files]
-        elif self.left_folder.exists():
+        if self.left_folder.exists():
             logging.info(f'loading left image files from folder "{self.left_folder}"')
             left_images = sorted([f for f in self.left_folder.iterdir() if f.is_file()])
             logging.info(f'left image count = {len(left_images)}')
             if len(left_images) > 0:
                 self.left_images = left_images
-        if self.right_image_path.exists():
-            logging.info(f'loading right image files from file "{self.right_image_path}"')
-            f = open(self.right_image_path, 'r')
-            files = f.readlines()
-            f.close()
-            self.right_images = [Path(v) for v in files]
-        elif self.right_folder.exists():
+
+        if self.right_folder.exists():
             logging.info(f'loading right image files from folder "{self.right_folder}"')
             right_images = sorted([f for f in self.right_folder.iterdir() if f.is_file()])
             logging.info(f'right image count = {len(right_images)}')
@@ -126,27 +137,34 @@ class Checker:
         """
         Check frequency, whether some recording is lost
         """
-        expect_imu_delta_time = 1. / 100.  # IMU 100 Hz
+        expect_imu_delta_time = 1. / 200.  # IMU 200 Hz
         expect_image_delta_time = 1. / 30  # Image 30 Hz
 
         # check IMU
-        if self.timestamp is not None:
-            print(util.Paragraph('Lost Recording for IMU'))
+        if self.acc_timestamp is not None:
+            # check accelerator
+            print(util.Paragraph('Lost Recording for IMU Accelerator'))
             lost_count = 0
-            for n in range(len(self.timestamp) - 1):
-                delta = (self.timestamp[n + 1] - self.timestamp[n])
+            for n in range(len(self.acc_timestamp) - 1):
+                delta = (self.acc_timestamp[n + 1] - self.acc_timestamp[n])
                 if delta > 2. * expect_imu_delta_time or delta < 0:
-                    print(
-                        f'[{n}/{len(self.timestamp)}] t = {self.timestamp[n]:.5f} s'
-                        f', deltaTime = {delta * 1000:.5f} ms',
-                        end='')
-                    if self.system_timestamp is not None:
-                        d = self.system_timestamp[n + 1] - self.system_timestamp[n]
-                        print(f', system delta time = {d*1000:.5f} ms')
-                    else:
-                        print()
+                    print(f'[{n}/{len(self.acc_timestamp)}] t = {self.acc_timestamp[n]:.5f} s'
+                          f', deltaTime = {delta * 1000:.5f} ms')
                     lost_count += 1
-            print(f'IMU Lost Count = {lost_count}, Lost Ratio = {lost_count * 100. / (len(self.timestamp) - 1):.3f}%')
+            print(f'IMU Accelerator, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(self.acc_timestamp) - 1):.3f}%')
+
+            # check gyroscope
+            print(util.Paragraph('Lost Recording for IMU Gyroscope'))
+            lost_count = 0
+            for n in range(len(self.gyro_timestamp) - 1):
+                delta = (self.gyro_timestamp[n + 1] - self.gyro_timestamp[n])
+                if delta > 2. * expect_imu_delta_time or delta < 0:
+                    print(f'[{n}/{len(self.gyro_timestamp)}] t = {self.gyro_timestamp[n]:.5f} s'
+                          f', deltaTime = {delta * 1000:.5f} ms')
+                    lost_count += 1
+            print(f'IMU Gyroscope, Lost Count = {lost_count}'
+                  f', Lost Ratio = {lost_count * 100. / (len(self.gyro_timestamp) - 1):.3f}%')
 
         # check left images
         if self.left_images is not None:
@@ -179,43 +197,35 @@ class Checker:
         Plot IMU frequency
         """
         # check sensor data
-        if self.timestamp is None:
+        if self.acc_timestamp is None or self.gyro_timestamp is None:
             return
 
         # plot
         fig = plt.figure('IMU Frequency', figsize=self.__figsize)
-        # plot index - frequency
+        # plot accelerator
         ax = fig.add_subplot(211)
-        delta_time = (self.timestamp[1:] - self.timestamp[:-1]) * 1000.  # ms
-        ax.set_title('IMU Frequency')
-        if plot_with_index or self.system_timestamp is None:
-            ax.plot(range(len(self.timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+        delta_time = (self.acc_timestamp[1:] - self.acc_timestamp[:-1]) * 1000.  # ms
+        ax.set_title('IMU Accelerator')
+        if plot_with_index:
+            ax.plot(range(len(self.acc_timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
             ax.set_xlabel('Index')
         else:
-            ax.plot(self.system_timestamp[:-1] - self.system_timestamp[0],
-                    delta_time,
-                    'b.',
-                    markersize=self.__markersize)
-            ax.set_xlabel('System Timestamp (s)')
-        ax.set_ylabel('Delta Sensor Time (ms)')
+            ax.plot(self.acc_timestamp[:-1] - self.acc_timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Timestamp (s)')
+        ax.set_ylabel('Delta Time (ms)')
         ax.grid(True)
-        # plot index - timestamp
+        # plot gyroscope
         ax = fig.add_subplot(212)
-        ax.set_title('IMU Timestamp')
-        ax.plot(range(len(self.timestamp)),
-                self.timestamp * 1000,
-                'b.',
-                markersize=self.__markersize,
-                label='Sensor Timestamp')
-        ax.plot(range(len(self.system_timestamp)),
-                self.system_timestamp * 1000,
-                'r.',
-                markersize=self.__markersize,
-                label='System Timestamp')
-        ax.set_xlabel('Index')
-        ax.set_ylabel('Timestamp (ms)')
+        delta_time = (self.gyro_timestamp[1:] - self.gyro_timestamp[:-1]) * 1000.  # ms
+        ax.set_title('IMU Gyroscope')
+        if plot_with_index:
+            ax.plot(range(len(self.gyro_timestamp) - 1), delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Index')
+        else:
+            ax.plot(self.gyro_timestamp[:-1] - self.gyro_timestamp[0], delta_time, 'b.', markersize=self.__markersize)
+            ax.set_xlabel('Timestamp (s)')
+        ax.set_ylabel('Delta Time (ms)')
         ax.grid(True)
-        ax.legend()
         fig.tight_layout()
 
     def __plot_image_frequency(self, plot_with_index=True) -> None:
@@ -226,12 +236,19 @@ class Checker:
         if self.left_images is None and self.right_images is None:
             return
 
+        # calculate plot number
+        plot_num = 0
+        if self.left_images is not None:
+            plot_num += 1
+        if self.right_images is not None:
+            plot_num += 1
+
         # plot
         current_plot_index = 1
         fig = plt.figure('Image Frequency', figsize=self.__figsize)
         # plot left image
         if self.left_images is not None:
-            ax = fig.add_subplot(211)
+            ax = fig.add_subplot(plot_num, 1, current_plot_index)
             timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.left_images]))  # s
             delta_time = (timestamp[1:] - timestamp[:-1]) * 1000.  # ms
             ax.set_title('Left Images')
@@ -243,26 +260,13 @@ class Checker:
                 ax.set_xlabel('Timestamp (s)')
             ax.set_ylabel('Delta Time (ms)')
             ax.grid(True)
-            # plot index - timestamp
-            ax = fig.add_subplot(212)
-            ax.set_title('Image Timestamp')
-            ax.plot(range(len(timestamp)),
-                    timestamp * 1000,
-                    'b.',
-                    markersize=self.__markersize,
-                    label='Sensor Timestamp')
-            ax.set_xlabel('Index')
-            ax.set_ylabel('Timestamp (ms)')
-            ax.grid(True)
-            ax.legend()
-            fig.tight_layout()
 
             # add current plot index
             current_plot_index += 1
 
         # plot right image
         if self.right_images is not None:
-            ax = fig.add_subplot(111)
+            ax = fig.add_subplot(plot_num, 2, current_plot_index)
             timestamp = np.array(sorted([float(f.stem) * 1E-9 for f in self.right_images]))  # s
             delta_time = (timestamp[1:] - timestamp[:-1]) * 1000.  # ms
             ax.set_title('Right Images')
@@ -284,7 +288,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s %(levelname)s %(filename)s:%(lineno)d] %(message)s")
 
     # argument parser
-    parser = argparse.ArgumentParser(description='Checker for Recorded Data')
+    parser = argparse.ArgumentParser(description='Checker for MYNT-EYE Data')
     parser.add_argument('folder', type=str, help='input and save folder')
     parser.add_argument('--plot-frequency', action='store_true', help='whether to plot frequency')
     parser.add_argument('--plot-with-index', action='store_true', help='whether to plot x label with sensor index')

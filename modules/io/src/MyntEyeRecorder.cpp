@@ -292,9 +292,9 @@ void MyntEyeRecorder::createImageSaverThread() {
         }
     };
 
-// compress image and then save
-// TODO: cannot found the corresponding method using TurboJPEG, instread by JPEGlib
-#if 1
+    // compress image and then save
+#if false
+    // compress using jpeglib
     auto yuyvFunc = [](shared_ptr<JobQueue<RawImage>>& imageQueue,
                        const function<void(const RawImageRecord&)>& processFunc) {
         while (true) {
@@ -354,9 +354,11 @@ void MyntEyeRecorder::createImageSaverThread() {
         }
     };
 #else
+    // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar), then compress using turbo-jpeg
     auto yuyvFunc = [](shared_ptr<JobQueue<RawImage>>& imageQueue,
                        const function<void(const RawImageRecord&)>& processFunc) {
         tjhandle compressor = tjInitCompress();
+        vector<unsigned char> yuvData;
 
         while (true) {
             // take job and check it's valid
@@ -365,13 +367,35 @@ void MyntEyeRecorder::createImageSaverThread() {
                 break;
             }
 
-            // compress image from BGR to jpeg
+            // resize buffer if don't match
+            int wh = job.data().img->width() * job.data().img->height();
+            int length = 2 * wh;
+            if (yuvData.size() != length) {
+                yuvData.resize(length);
+            }
+
+            // convert YUYV(YUV422 Packed) to YUV(YUV422 Planar)
+            unsigned char* pY = yuvData.data();
+            unsigned char* pU = yuvData.data() + wh;
+            unsigned char* pV = yuvData.data() + wh + wh / 2;
+            uint8_t* imgData = job.data().img->data();
+            for (int i = 0; i < length;) {
+                *pY = imgData[i++];
+                *pU = imgData[i++];
+                ++pY;
+                ++pU;
+                *pY = imgData[i++];
+                *pV = imgData[i++];
+                ++pY;
+                ++pV;
+            }
+
+            // compress image using turbojpeg
             RawImageRecord record;
-            record.setTimestamp(job.data().timestamp * 1.0E-5);           // 0.01 ms => s
-            job.data().img = job.data().img->To(ImageFormat::COLOR_BGR);  // to BGR
-            if (tjCompress2(compressor, job.data().img->data(), job.data().img->width(), 0, job.data().img->height(),
-                            TJPF_BGR, &record.reading().buffer(), &record.reading().size(), TJSAMP_444, 95,
-                            TJFLAG_FASTDCT) != 0) {
+            record.setTimestamp(job.data().timestamp * 1.0E-5);  // 0.01 ms => s
+            if (tjCompressFromYUV(compressor, yuvData.data(), job.data().img->width(), 1, job.data().img->height(),
+                                  TJSAMP_422, &record.reading().buffer(), &record.reading().size(), 95,
+                                  TJFLAG_FASTDCT) != 0) {
                 LOG(ERROR) << fmt::format("turbo jpeg compress error: {}", tjGetErrorStr2(compressor));
             }
 

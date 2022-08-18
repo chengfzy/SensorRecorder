@@ -12,7 +12,8 @@ enable_testing()
 ###############################################################################
 # Options
 ###############################################################################
-option(DebugTest "Debug test" OFF)
+option(DebugTest "Enable debug test info" OFF)
+option(BuildTest "Build testing code" OFF)
 
 # default build type
 if (NOT CMAKE_BUILD_TYPE)
@@ -47,7 +48,7 @@ list(APPEND DEPEND_LIBS
 # find MyntEye camera library
 find_package(mynteyed)      # MyntEye Depth
 find_package(TurboJpeg)     # turbojpeg
-if (${TurboJpeg_FOUND} AND ${mynteyed_FOUND})
+if (${mynteyed_FOUND} AND ${TurboJpeg_FOUND})
     message(STATUS "Build with MYNT EYE Depth Camera")
     set(WithMyntEyeD ON)
     add_definitions(-DWITH_MYNTEYE_DEPTH)
@@ -68,12 +69,51 @@ else ()
     set(WithMyntEyeD OFF)
 endif ()
 
+# find ZED Open Capture library
+find_package(ZedOpen)
+if(${ZedOpen_FOUND} AND ${TurboJpeg_FOUND})
+    message(STATUS "Build with ZED Camera(Open Capture library)")
+    set(WithZedOpen ON)
+    add_definitions(-DWITH_ZED_OPEN)
+    # add dependency
+    list(APPEND DEPEND_INCLUDES
+        ${TurboJpeg_INCLUDE_DIRS}
+        ${ZedOpen_INCLUDE_DIRS}
+        )
+    list(APPEND DEPEND_LIBS
+        ${TurboJpeg_LIBRARIES}
+        ${ZedOpen_LIBRARIES}
+        )
+else()
+    message(STATUS "Build without ZED Camera(Open Capture library)")
+    set(WithZedOpen OFF)
+endif()
+
+# build testing
+if(BuildTest)
+    # find gtest
+    find_package(GTest)
+    if(GTest_FOUND)
+        # add dependency
+        list(APPEND DEPEND_INCLUDES ${GTEST_INCLUDE_DIRS})
+        list(APPEND DEPEND_LIBS ${GTEST_LIBRARIES})
+    else()
+        set(BuiltTest OFF)
+    endif()
+endif()
+# print info
+if(BuildTest)
+    message(STATUS "Build testing code")
+else()
+    message(STATUS "Build without testing")
+endif()
+
 ###############################################################################
 # Project Setting
 ###############################################################################
 # debug test
 if (DebugTest)
-    message(STATUS "With debug test")
+    message(STATUS "Enable debug test info")
     add_definitions(-DDebugTest)
 endif ()
 
@@ -90,7 +130,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 
 ###############################################################################
 # Project
